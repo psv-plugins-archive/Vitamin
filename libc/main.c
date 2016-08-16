@@ -49,7 +49,6 @@ extern uint32_t payload_start, payload_end;
 
 #define PLUGIN_PATH "ux0:freek.suprx"
 
-static char contentid[48];
 static char titleid[17];
 
 char pspemu_path[16];
@@ -62,20 +61,50 @@ typedef struct {
 	uint32_t data_addr;
 	uint32_t data_size;
 	uint32_t sce_module_info_offset;
-} SuprxArguments;
+} SelfArguments;
 
 // ux0:app/ABCD01234/sce_module/steriod.suprx
 
 // TODO: compress
-// TODO: dump additional suprx
+// TODO: dump additional self
 
 // TODO: pgf font?
 // TODO: appmgr api to launch manual
 
-int writeSuprx(SuprxArguments *args) {
-	// Backup real text size and data size
+int hijackStub(SelfArguments *args, void *text_buf, uint32_t reserved_data_addr, uint32_t placeholder_stub, char *libname, uint32_t nid, int stub_position) {
+	uint32_t function = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, libname, nid);
+	if (!function)
+		return -1;
+
+	uint32_t addr = function - args->text_addr;
+
+	// Jump to stub pointer
+	uint32_t address = args->data_addr + reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->stubs[stub_position]);
+	*(uint32_t *)(text_buf + addr + 0x0) = 0xE3004000 | (((address & 0xFFFF) & 0xF000) << 4) | ((address & 0xFFFF) & 0xFFF); // movw v1, #low
+	*(uint32_t *)(text_buf + addr + 0x4) = 0xE3404000 | (((address >> 16) & 0xF000) << 4) | ((address >> 16) & 0xFFF); // movt v1, #high
+	*(uint32_t *)(text_buf + addr + 0x8) = 0xE5944000; // ldr v1, [v1]
+	*(uint32_t *)(text_buf + addr + 0xC) = 0xE12FFF14; // bx v1
+
+	// Let the stub be resolved in a placeholder stub
+	int i;
+	for (i = args->sce_module_info_offset; i < args->text_size; i += 4) {
+		if (*(uint32_t *)(text_buf + i) == function) {
+			*(uint32_t *)(text_buf + i) = placeholder_stub;
+			break;
+		}
+	}
+
+	return 0;
+}
+
+int writeSelf(SelfArguments *args) {
+	// Save real text size and data size
 	uint32_t real_text_size = args->text_size;
 	uint32_t real_data_size = args->data_size;
+
+	// Align text size and data size
+	args->text_size = ALIGN(args->text_size, sizeof(uint32_t));
+	args->data_size = ALIGN(args->data_size, sizeof(uint32_t));
 
 	// Payload size and plugin path size
 	uint32_t payload_size = (&payload_end - &payload_start) * sizeof(uint32_t);
@@ -93,7 +122,6 @@ int writeSuprx(SuprxArguments *args) {
 
 	// Reserve space in text segment for module_start hijacking
 	if (args->add_payload) {
-		args->text_size = ALIGN(args->text_size, sizeof(uint32_t));
 		args->text_size += payload_size;
 	}
 
@@ -104,12 +132,12 @@ int writeSuprx(SuprxArguments *args) {
 	args->data_size += sizeof(ReservedData);
 
 	// Copy .text to buffer
-	char *text_buf = malloc(args->text_size);
+	void *text_buf = malloc(args->text_size);
 	memset(text_buf, 0, args->text_size);
 	memcpy(text_buf, (void *)args->text_addr, real_text_size);
 
 	// Copy .data to buffer
-	char *data_buf = malloc(args->data_size);
+	void *data_buf = malloc(args->data_size);
 	memset(data_buf, 0, args->data_size);
 	memcpy(data_buf, (void *)args->data_addr, real_data_size);
 
@@ -119,52 +147,30 @@ int writeSuprx(SuprxArguments *args) {
 	// Copy plugin path to reserved space in data
 	strcpy(reserved_data->path, PLUGIN_PATH);
 
-	//hijackStub(args, "SceFios2", 0x774C2C05, 0);
-/*
-int hijackStub(SceModuleInfo *mod_info, uint32_t text_addr, char *libname, uint32_t nid, int stub_position) {
-	return 0;
-}
-*/
+	// Use __sce_aeabi_idiv0 as placeholder stub
+	uint32_t placeholder_stub = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, "SceLibKernel", 0x4373B548);
+	debugPrintf("placeholder_stub: 0x%08X\n", placeholder_stub);
+
 	// Hijack sceFiosInitialize
-	uint32_t function = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, "SceFios2", 0x774C2C05);
-	if (function) {
-		uint32_t addr = function - args->text_addr;
-
-		uint32_t address = args->data_addr + reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->stubs[0]);
-		*(uint32_t *)(text_buf + addr + 0x0) = 0xE3004000 | (((address & 0xFFFF) & 0xF000) << 4) | ((address & 0xFFFF) & 0xFFF); // movw v1, #low
-		*(uint32_t *)(text_buf + addr + 0x4) = 0xE3404000 | (((address >> 16) & 0xF000) << 4) | ((address >> 16) & 0xFFF); // movt v1, #high
-		*(uint32_t *)(text_buf + addr + 0x8) = 0xE5944000; // ldr v1, [v1]
-		*(uint32_t *)(text_buf + addr + 0xC) = 0xE12FFF14; // bx v1
-
-		// With this patch, 0x774C2C05 will be resolved in function + 0x10
-		// I checked, this does not corrupt import
-		int i;
-		for (i = args->sce_module_info_offset; i < args->text_size; i += 4) {
-			if (*(uint32_t *)(text_buf + i) == function) {
-				*(uint32_t *)(text_buf + i) = function + 0x10;
-			}
-		}
-	}
+	hijackStub(args, text_buf, reserved_data_addr, placeholder_stub, "SceFios2", 0x774C2C05, 0);
 
 	// TODO: field_38 in sce_module_info. what is it?
 
 	// Add payload
 	if (args->add_payload) {
-		// 0x4373B548 __sce_aeabi_idiv0
-		// 0xFB235848 __sce_aeabi_ldiv0
-
-		uint32_t function = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, "SceLibKernel", 0x4373B548);
-		debugPrintf("function: 0x%08X\n", function);
-		if (function) {
-			// Hijack __sce_aeabi_idiv0 to sceKernelLoadStartModule
+		uint32_t hijack_stub = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, "SceLibKernel", 0xFB235848);
+		debugPrintf("hijack_stub: 0x%08X\n", hijack_stub);
+		if (hijack_stub) {
+			// Hijack __sce_aeabi_ldiv0 to sceKernelLoadStartModule
 			int i;
 			for (i = args->sce_module_info_offset; i < args->text_size; i += 4) {
-				if (*(uint32_t *)(text_buf + i) == 0x4373B548) {
+				if (*(uint32_t *)(text_buf + i) == 0xFB235848) {
 					*(uint32_t *)(text_buf + i) = 0x2DCC4AFA; // sceKernelLoadStartModule
+					break;
 				}
 			}
 
-			// Copy payload
+			// Copy payload to end of .text
 			memcpy(text_buf + payload_addr, &payload_start, payload_size);
 
 			// Get original module_start
@@ -183,9 +189,9 @@ int hijackStub(SceModuleInfo *mod_info, uint32_t text_addr, char *libname, uint3
 				}
 			}
 
-			// Adjust args
+			// Adjust arguments
 			*(uint32_t *)(text_buf + payload_addr + 0x30) = args->data_addr + reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->path); // path
-			*(uint32_t *)(text_buf + payload_addr + 0x34) = function; // sceKernelLoadStartModule
+			*(uint32_t *)(text_buf + payload_addr + 0x34) = hijack_stub; // sceKernelLoadStartModule
 			*(uint32_t *)(text_buf + payload_addr + 0x38) = args->text_addr + module_start_ori + 1; // module_start
 		}
 	}
@@ -310,7 +316,7 @@ int hijackStub(SceModuleInfo *mod_info, uint32_t text_addr, char *libname, uint3
 	sinfo_data.compression = 1;
 	sinfo_data.encryption = 2;
 
-	// Write suprx to ux0:pspemu/TITLEID/
+	// Write self to ux0:pspemu/TITLEID/
 	char path[128];
 	sprintf(path, "%s/%s/%s", pspemu_path, titleid, args->path + strlen("app0:"));
 	SceUID fd = sceIoOpen(path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
@@ -351,7 +357,7 @@ int hijackStub(SceModuleInfo *mod_info, uint32_t text_addr, char *libname, uint3
 	return 0;
 }
 
-int dumpSuprx(char *path, int flags, int add_payload) {
+int dumpSelf(char *path, int flags, int add_payload) {
 	// Load module, but not start. NID unpoisoned
 	SceUID mod = sceKernelLoadModule(path, flags, NULL);
 	if (mod < 0)
@@ -364,25 +370,31 @@ int dumpSuprx(char *path, int flags, int add_payload) {
 	if (res < 0)
 		return res;
 
-	// Open suprx
+	// Open self
 	SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
 	if (fd < 0)
 		return fd;
 
 	// Read SCE header
 	SCE_header shdr;
-	sceIoRead(fd, &shdr, sizeof(SCE_header));
+	if (sceIoRead(fd, &shdr, sizeof(SCE_header)) != sizeof(SCE_header)) {
+		sceIoClose(fd);
+		return -1;
+	}
 
 	// Read ELF header
 	Elf32_Ehdr ehdr;
 	sceIoLseek(fd, shdr.elf_offset, SCE_SEEK_SET);
-	sceIoRead(fd, &ehdr, sizeof(Elf32_Ehdr));
+	if (sceIoRead(fd, &ehdr, sizeof(Elf32_Ehdr)) != sizeof(Elf32_Ehdr)) {
+		sceIoClose(fd);
+		return -2;
+	}
 
 	// Close
 	sceIoClose(fd);
 
-	// Write suprx
-	SuprxArguments args;
+	// Write self
+	SelfArguments args;
 	args.path = path;
 	args.add_payload = add_payload;
 	args.text_addr = (uint32_t)info.segments[0].vaddr;
@@ -408,12 +420,10 @@ int dumpSuprx(char *path, int flags, int add_payload) {
 	sprintf(string, "%s/%s_1_0x%08X", pspemu_path, info.module_name, (unsigned int)args.data_addr);
 	WriteFile(string, (void *)args.data_addr, args.data_size);
 
-	writeSuprx(&args);
-
-	return 0;
+	return writeSelf(&args);
 }
 
-int dumpEbootBin() {
+int dumpExecutable() {
 	int res;
 
 	SceUID mod_list[MAX_MODULES];
@@ -424,25 +434,43 @@ int dumpEbootBin() {
 	if (res < 0)
 		return res;
 
-	// Stop & unload
-	res = sceKernelStopUnloadModule(mod_list[mod_count - 1], 0, NULL, 0, NULL, NULL);
+	// Executable module id
+	SceUID mod = mod_list[mod_count - 1];
+
+	// Get module info
+	SceKernelModuleInfo info;
+	info.size = sizeof(SceKernelModuleInfo);
+	res = sceKernelGetModuleInfo(mod, &info);
 	if (res < 0)
 		return res;
 
-	// Dump eboot.bin
+	// Stop & unload
+	res = sceKernelStopUnloadModule(mod, 0, NULL, 0, NULL, NULL);
+	if (res < 0)
+		return res;
+
+	debugPrintf("executable %s at %s\n", info.module_name, info.path);
+	char *p = strrchr(info.path, '/');
+	if (!p)
+		return -1;
+
+	char file[128];
+	sprintf(file, "app0:%s", p + 1);
+
+	printf("Writing ux0:pspemu/%s/%s...", titleid, file + strlen("app0:"));
+
+	// Dump executable
 	char path[128];
 	sprintf(path, "%s/%s", pspemu_path, titleid);
 	sceIoMkdir(path, 0777);
 
-	dumpSuprx("app0:eboot.bin", 0, 1);
+	res = dumpSelf(file, 0, 1);
+	if (res < 0) {
+		printf("Error 0x%08X\n");
+		return res;
+	}
 
-	return 0;
-}
-
-int dumpGame() {
-	char path[128];
-	sprintf(path, "%s/%s", pspemu_path, titleid);
-	copyPath("app0:", path);
+	printf("OK\n");
 	return 0;
 }
 
@@ -460,28 +488,26 @@ int main(int argc, char *argv[]) {
 	// Init screen
 	psvDebugScreenInit();
 
+	// Info
+	printInfo();
+
 	// Get pspemu path
 	memset(pspemu_path, 0, sizeof(pspemu_path));
 	sceAppMgrPspSaveDataRootMount(pspemu_path);
-
-	// Get content id
-	memset(contentid, 0, sizeof(contentid));
-	sceAppMgrAppParamGetString(sceKernelGetProcessId(), SCE_APPMGR_APP_PARAM_CONTENT_ID, contentid, sizeof(contentid));
 
 	// Get title id
 	memset(titleid, 0, sizeof(titleid));
 	sceAppMgrAppParamGetString(sceKernelGetProcessId(), SCE_APPMGR_APP_PARAM_TITLE_ID, titleid, sizeof(titleid));
 
 	sprintf(path, "%s/updt.bin", pspemu_path);
-	if ((fd = sceIoOpen(path, SCE_O_RDONLY, 0)) > 0) {
+	if ((fd = sceIoOpen(path, SCE_O_RDONLY, 0)) >= 0) {
 		sceIoClose(fd);
 		sceIoRemove(path);
 		strcat(titleid, "_updt");
 	}
 
-	printf("Writing ux0:pspemu/%s/eboot.bin...", titleid);
-	dumpEbootBin();
-	printf("OK\n");
+	// Dump exectuable
+	dumpExecutable();
 
 	printf("Auto-exiting in 5 seconds...\n");
 

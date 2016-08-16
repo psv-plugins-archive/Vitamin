@@ -107,7 +107,6 @@ int copyFile(char *src_path, char *dst_path) {
 	sceIoClose(fdsrc);
 
 	printf("OK\n");
-
 	return 0;
 }
 
