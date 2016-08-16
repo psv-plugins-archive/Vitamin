@@ -138,6 +138,8 @@ int sceFiosInitializePatched(void *param) {
 		param74.threadStackSize[0] = 0;
 		param74.threadStackSize[1] = 0;
 		param74.threadStackSize[2] = 0;
+	} else if (size == sizeof(SceFiosParams74)) {
+		memcpy(&param74, param, sizeof(SceFiosParams74));
 	}
 
 	/*
