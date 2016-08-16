@@ -64,7 +64,6 @@ int WriteFile(char *file, void *buf, int size);
 
 int copyFile(char *src_path, char *dst_path);
 int copyPath(char *src_path, char *dst_path);
-int gzipCompress(uint8_t *dst, uint8_t *src, int size);
 
 uint32_t findModuleImport(SceModuleInfo *mod_info, uint32_t text_addr, char *libname, uint32_t nid);
 

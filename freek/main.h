@@ -21,6 +21,12 @@
 
 #define ALIGN(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
 
+#define SCE_APPUTIL_APPPARAM_ID_SKU_FLAG 0
+
+#define SCE_APPUTIL_APPPARAM_SKU_FLAG_NONE 0
+#define SCE_APPUTIL_APPPARAM_SKU_FLAG_TRIAL 1
+#define SCE_APPUTIL_APPPARAM_SKU_FLAG_FULL 3
+
 #define SCE_APPMGR_APP_PARAM_TITLE_ID 12
 
 #define MAX_MODULES 128

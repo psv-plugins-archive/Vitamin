@@ -43,7 +43,9 @@
 
 #include "../reserved_data.h"
 
-int _newlib_heap_size_user = 64 * 1024 * 1024;
+// Loading a compressed eboot.bin results in c1-2722-3
+
+int _newlib_heap_size_user = 128 * 1024 * 1024;
 
 extern uint32_t payload_start, payload_end;
 
@@ -56,22 +58,28 @@ char pspemu_path[16];
 typedef struct {
 	char *path;
 	int add_payload;
+
 	uint32_t text_addr;
 	uint32_t text_size;
+	uint32_t payload_addr;
+	void *text_buf;
+
 	uint32_t data_addr;
 	uint32_t data_size;
+	uint32_t reserved_data_addr;
+	void *data_buf;
+
 	uint32_t sce_module_info_offset;
 } SelfArguments;
 
 // ux0:app/ABCD01234/sce_module/steriod.suprx
 
-// TODO: compress
 // TODO: dump additional self
 
 // TODO: pgf font?
 // TODO: appmgr api to launch manual
 
-int hijackStub(SelfArguments *args, void *text_buf, uint32_t reserved_data_addr, uint32_t placeholder_stub, char *libname, uint32_t nid, int stub_position) {
+int hijackStub(SelfArguments *args, uint32_t placeholder_stub, char *libname, uint32_t nid, int stub_position) {
 	uint32_t function = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, libname, nid);
 	if (!function)
 		return -1;
@@ -79,17 +87,17 @@ int hijackStub(SelfArguments *args, void *text_buf, uint32_t reserved_data_addr,
 	uint32_t addr = function - args->text_addr;
 
 	// Jump to stub pointer
-	uint32_t address = args->data_addr + reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->stubs[stub_position]);
-	*(uint32_t *)(text_buf + addr + 0x0) = 0xE3004000 | (((address & 0xFFFF) & 0xF000) << 4) | ((address & 0xFFFF) & 0xFFF); // movw v1, #low
-	*(uint32_t *)(text_buf + addr + 0x4) = 0xE3404000 | (((address >> 16) & 0xF000) << 4) | ((address >> 16) & 0xFFF); // movt v1, #high
-	*(uint32_t *)(text_buf + addr + 0x8) = 0xE5944000; // ldr v1, [v1]
-	*(uint32_t *)(text_buf + addr + 0xC) = 0xE12FFF14; // bx v1
+	uint32_t address = args->data_addr + args->reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->stubs[stub_position]);
+	*(uint32_t *)(args->text_buf + addr + 0x0) = 0xE3004000 | (((address & 0xFFFF) & 0xF000) << 4) | ((address & 0xFFFF) & 0xFFF); // movw v1, #low
+	*(uint32_t *)(args->text_buf + addr + 0x4) = 0xE3404000 | (((address >> 16) & 0xF000) << 4) | ((address >> 16) & 0xFFF); // movt v1, #high
+	*(uint32_t *)(args->text_buf + addr + 0x8) = 0xE5944000; // ldr v1, [v1]
+	*(uint32_t *)(args->text_buf + addr + 0xC) = 0xE12FFF14; // bx v1
 
 	// Let the stub be resolved in a placeholder stub
 	int i;
 	for (i = args->sce_module_info_offset; i < args->text_size; i += 4) {
-		if (*(uint32_t *)(text_buf + i) == function) {
-			*(uint32_t *)(text_buf + i) = placeholder_stub;
+		if (*(uint32_t *)(args->text_buf + i) == function) {
+			*(uint32_t *)(args->text_buf + i) = placeholder_stub;
 			break;
 		}
 	}
@@ -97,7 +105,7 @@ int hijackStub(SelfArguments *args, void *text_buf, uint32_t reserved_data_addr,
 	return 0;
 }
 
-int writeSelf(SelfArguments *args) {
+int manipulateSelf(SelfArguments *args) {
 	// Save real text size and data size
 	uint32_t real_text_size = args->text_size;
 	uint32_t real_data_size = args->data_size;
@@ -109,6 +117,7 @@ int writeSelf(SelfArguments *args) {
 	// Payload size and plugin path size
 	uint32_t payload_size = (&payload_end - &payload_start) * sizeof(uint32_t);
 
+	// Available text space
 	uint32_t available_text_space = args->data_addr - args->text_addr - args->text_size;
 	debugPrintf("Available text space for payload: 0x%08X\n", available_text_space);
 
@@ -118,7 +127,7 @@ int writeSelf(SelfArguments *args) {
 	}
 
 	// Payload address
-	uint32_t payload_addr = args->text_size;
+	args->payload_addr = args->text_size;
 
 	// Reserve space in text segment for module_start hijacking
 	if (args->add_payload) {
@@ -126,23 +135,23 @@ int writeSelf(SelfArguments *args) {
 	}
 
 	// Reserved data address
-	uint32_t reserved_data_addr = args->data_size;
+	args->reserved_data_addr = args->data_size;
 
 	// Reserve space in data segment
 	args->data_size += sizeof(ReservedData);
 
 	// Copy .text to buffer
-	void *text_buf = malloc(args->text_size);
-	memset(text_buf, 0, args->text_size);
-	memcpy(text_buf, (void *)args->text_addr, real_text_size);
+	args->text_buf = malloc(args->text_size);
+	memset(args->text_buf, 0, args->text_size);
+	memcpy(args->text_buf, (void *)args->text_addr, real_text_size);
 
 	// Copy .data to buffer
-	void *data_buf = malloc(args->data_size);
-	memset(data_buf, 0, args->data_size);
-	memcpy(data_buf, (void *)args->data_addr, real_data_size);
+	args->data_buf = malloc(args->data_size);
+	memset(args->data_buf, 0, args->data_size);
+	memcpy(args->data_buf, (void *)args->data_addr, real_data_size);
 
 	// Reserved data
-	ReservedData *reserved_data = (ReservedData *)(data_buf + reserved_data_addr);
+	ReservedData *reserved_data = (ReservedData *)(args->data_buf + args->reserved_data_addr);
 
 	// Copy plugin path to reserved space in data
 	strcpy(reserved_data->path, PLUGIN_PATH);
@@ -152,7 +161,10 @@ int writeSelf(SelfArguments *args) {
 	debugPrintf("placeholder_stub: 0x%08X\n", placeholder_stub);
 
 	// Hijack sceFiosInitialize
-	hijackStub(args, text_buf, reserved_data_addr, placeholder_stub, "SceFios2", 0x774C2C05, 0);
+	hijackStub(args, placeholder_stub, "SceFios2", 0x774C2C05, 0);
+
+	// Hijack sceAppUtilAppParamGetInt
+	hijackStub(args, placeholder_stub, "SceAppUtil", 0xCD7FD67A, 1);
 
 	// TODO: field_38 in sce_module_info. what is it?
 
@@ -164,38 +176,56 @@ int writeSelf(SelfArguments *args) {
 			// Hijack __sce_aeabi_ldiv0 to sceKernelLoadStartModule
 			int i;
 			for (i = args->sce_module_info_offset; i < args->text_size; i += 4) {
-				if (*(uint32_t *)(text_buf + i) == 0xFB235848) {
-					*(uint32_t *)(text_buf + i) = 0x2DCC4AFA; // sceKernelLoadStartModule
+				if (*(uint32_t *)(args->text_buf + i) == 0xFB235848) {
+					*(uint32_t *)(args->text_buf + i) = 0x2DCC4AFA; // sceKernelLoadStartModule
 					break;
 				}
 			}
 
 			// Copy payload to end of .text
-			memcpy(text_buf + payload_addr, &payload_start, payload_size);
+			memcpy(args->text_buf + args->payload_addr, &payload_start, payload_size);
 
 			// Get original module_start
-			uint32_t module_start_ori = *(uint32_t *)(text_buf + args->sce_module_info_offset + 0x44);
+			uint32_t module_start_ori = *(uint32_t *)(args->text_buf + args->sce_module_info_offset + 0x44);
 
 			debugPrintf("module_start_ori: 0x%08X\n", module_start_ori);
 
 			// module_start redirection #1
-			*(uint32_t *)(text_buf + args->sce_module_info_offset + 0x44) = payload_addr;
+			*(uint32_t *)(args->text_buf + args->sce_module_info_offset + 0x44) = args->payload_addr;
 
 			// module_start redirection #2
 			for (i = args->sce_module_info_offset; i < args->text_size; i += 4) {
-				if (*(uint32_t *)(text_buf + i) == (args->text_addr + module_start_ori + 1)) {
-					*(uint32_t *)(text_buf + i) = (args->text_addr + payload_addr + 1);
+				if (*(uint32_t *)(args->text_buf + i) == (args->text_addr + module_start_ori + 1)) {
+					*(uint32_t *)(args->text_buf + i) = (args->text_addr + args->payload_addr + 1);
 					break;
 				}
 			}
 
 			// Adjust arguments
-			*(uint32_t *)(text_buf + payload_addr + 0x30) = args->data_addr + reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->path); // path
-			*(uint32_t *)(text_buf + payload_addr + 0x34) = hijack_stub; // sceKernelLoadStartModule
-			*(uint32_t *)(text_buf + payload_addr + 0x38) = args->text_addr + module_start_ori + 1; // module_start
+			*(uint32_t *)(args->text_buf + args->payload_addr + 0x30) = args->data_addr + args->reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->path); // path
+			*(uint32_t *)(args->text_buf + args->payload_addr + 0x34) = hijack_stub; // sceKernelLoadStartModule
+			*(uint32_t *)(args->text_buf + args->payload_addr + 0x38) = args->text_addr + module_start_ori + 1; // module_start
 		}
 	}
 
+	return 0;
+}
+
+int writeSelf(SelfArguments *args) {
+/*
+	// Compression
+	uint32_t compressed_text_size = compressBound(args->text_size);
+	uint32_t compressed_data_size = compressBound(args->data_size);
+
+	void *compressed_text_buf = malloc(compressed_text_size);
+	void *compressed_data_buf = malloc(compressed_data_size);
+
+	compress(compressed_text_buf, &compressed_text_size, args->text_buf, args->text_size);
+	compress(compressed_data_buf, &compressed_data_size, args->data_buf, args->data_size);
+
+	uint32_t compressed_text_offset = ALIGN(sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr) * PROGRAM_HEADER_NUM, 0x10);
+	uint32_t compressed_data_offset = compressed_text_offset + ALIGN(compressed_text_size, 0x1000); // or 0x20
+*/
 	// Offsets
 	uint32_t text_offset = ALIGN(sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr) * PROGRAM_HEADER_NUM, 0x10);
 	uint32_t data_offset = text_offset + ALIGN(args->text_size, 0x1000);
@@ -222,7 +252,7 @@ int writeSelf(SelfArguments *args) {
 	shdr.sceversion_offset = shdr.section_info_offset + sizeof(segment_info) * PROGRAM_HEADER_NUM;
 	shdr.controlinfo_offset = shdr.sceversion_offset + sizeof(SCE_version);
 	shdr.controlinfo_size = sizeof(SCE_controlinfo_5) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7);
-	shdr.self_filesize = shdr.sceversion_offset + shdr.elf_filesize;
+	shdr.self_filesize = shdr.header_len + data_offset + args->data_size;
 
 	// App info
 	SCE_appinfo appinfo;
@@ -245,14 +275,14 @@ int writeSelf(SelfArguments *args) {
 	SCE_controlinfo_5 ctrl_5;
 	memset(&ctrl_5, 0, sizeof(SCE_controlinfo_5));
 	ctrl_5.common.type = 5;
-	ctrl_5.common.size = sizeof(ctrl_5);
+	ctrl_5.common.size = sizeof(SCE_controlinfo_5);
 	ctrl_5.common.unk = 1;
 
 	// Control info 6
 	SCE_controlinfo_6 ctrl_6;
 	memset(&ctrl_6, 0, sizeof(SCE_controlinfo_6));
 	ctrl_6.common.type = 6;
-	ctrl_6.common.size = sizeof(ctrl_6);
+	ctrl_6.common.size = sizeof(SCE_controlinfo_6);
 	ctrl_6.common.unk = 1;
 	ctrl_6.unk1 = 1;
 
@@ -260,7 +290,7 @@ int writeSelf(SelfArguments *args) {
 	SCE_controlinfo_7 ctrl_7;
 	memset(&ctrl_7, 0, sizeof(SCE_controlinfo_7));
 	ctrl_7.common.type = 7;
-	ctrl_7.common.size = sizeof(ctrl_7);
+	ctrl_7.common.size = sizeof(SCE_controlinfo_7);
 
 	// ELF header
 	Elf32_Ehdr ehdr;
@@ -344,12 +374,10 @@ int writeSelf(SelfArguments *args) {
 	sceIoWrite(fd, &phdr_data, sizeof(Elf32_Phdr));
 
 	sceIoLseek(fd, HEADER_LEN + text_offset, SCE_SEEK_SET);
-	sceIoWrite(fd, (void *)text_buf, args->text_size);
+	sceIoWrite(fd, (void *)args->text_buf, args->text_size);
 
 	sceIoLseek(fd, HEADER_LEN + data_offset, SCE_SEEK_SET);
-	sceIoWrite(fd, (void *)data_buf, args->data_size);
-
-	free(text_buf);
+	sceIoWrite(fd, (void *)args->data_buf, args->data_size);
 
 	// Close
 	sceIoClose(fd);
@@ -395,6 +423,7 @@ int dumpSelf(char *path, int flags, int add_payload) {
 
 	// Write self
 	SelfArguments args;
+	memset(&args, 0, sizeof(SelfArguments));
 	args.path = path;
 	args.add_payload = add_payload;
 	args.text_addr = (uint32_t)info.segments[0].vaddr;
@@ -410,7 +439,7 @@ int dumpSelf(char *path, int flags, int add_payload) {
 	debugPrintf("data_addr: 0x%08X\n", args.data_addr);
 	debugPrintf("data_size: 0x%08X\n", args.data_size);
 	debugPrintf("sce_module_info_offset: 0x%08X\n", args.sce_module_info_offset);
-
+/*
 	// TODO: remove this. DEBUG ONLY: dump text and addr separately
 	char string[128];
 
@@ -419,8 +448,22 @@ int dumpSelf(char *path, int flags, int add_payload) {
 
 	sprintf(string, "%s/%s_1_0x%08X", pspemu_path, info.module_name, (unsigned int)args.data_addr);
 	WriteFile(string, (void *)args.data_addr, args.data_size);
+*/
+	// Manipulate self
+	res = manipulateSelf(&args);
+	if (res >= 0) {
+		// Write self
+		res = writeSelf(&args);
+	}
 
-	return writeSelf(&args);
+	// Free buffers
+	if (args.data_buf)
+		free(args.data_buf);
+
+	if (args.text_buf)
+		free(args.text_buf);
+
+	return res;
 }
 
 int dumpExecutable() {

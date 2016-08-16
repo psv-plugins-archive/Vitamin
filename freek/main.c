@@ -17,6 +17,7 @@
 */
 
 #include <psp2/appmgr.h>
+#include <psp2/apputil.h>
 #include <psp2/power.h>
 #include <psp2/sysmodule.h>
 #include <psp2/io/dirent.h>
@@ -220,6 +221,17 @@ int sceFiosInitializePatched(void *param) {
 	return res;
 }
 
+int sceAppUtilAppParamGetIntPatched(SceAppUtilAppParamId paramId, int *value) {
+	int res = sceAppUtilAppParamGetInt(paramId, value);
+
+	if (paramId == SCE_APPUTIL_APPPARAM_ID_SKU_FLAG) {
+		if (value && *value == SCE_APPUTIL_APPPARAM_SKU_FLAG_TRIAL)
+			*value = SCE_APPUTIL_APPPARAM_SKU_FLAG_FULL;
+	}
+	
+	return res;
+}
+
 // BATMAN: crash in libc + 0x14198 :(
 
 int _start(SceSize args, void *argp) {
@@ -257,8 +269,9 @@ int _start(SceSize args, void *argp) {
 	// Reserved data
 	ReservedData *reserved_data = (ReservedData *)(data_addr + data_size - sizeof(ReservedData));
 
-	// Function #0
+	// Patch functions
 	reserved_data->stubs[0] = (uint32_t)sceFiosInitializePatched + 1;
+	reserved_data->stubs[1] = (uint32_t)sceAppUtilAppParamGetIntPatched + 1;
 
 	return 0;
 }

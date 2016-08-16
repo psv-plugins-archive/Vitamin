@@ -162,44 +162,6 @@ int copyPath(char *src_path, char *dst_path) {
 	return 0;
 }
 
-int gzipCompress(uint8_t *dst, uint8_t *src, int size) {
-	int res;
-
-	z_stream strm;
-	strm.zalloc = Z_NULL;
-	strm.zfree = Z_NULL;
-	strm.opaque = Z_NULL;
-
-	uint8_t *buffer = malloc(size);
-	if (!buffer)
-		return -1;
-
-	res = deflateInit2(&strm, 9, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
-	if (res != Z_OK) {
-		free(buffer);
-		return res;
-	}
-
-	strm.avail_in = size;
-	strm.next_in = (void *)src;
-	strm.avail_out = size;
-	strm.next_out = buffer;
-
-	res = deflate(&strm, Z_FINISH);
-	if (res == Z_STREAM_ERROR) {
-		deflateEnd(&strm);
-		free(buffer);
-		return res;
-	}
-
-	memcpy(dst, buffer, strm.total_out);
-
-	deflateEnd(&strm);
-	free(buffer);
-
-	return strm.total_out;
-}
-
 void convertToImportsTable3xx(SceImportsTable2xx *import_2xx, SceImportsTable3xx *import_3xx) {
 	memset(import_3xx, 0, sizeof(SceImportsTable3xx));
 

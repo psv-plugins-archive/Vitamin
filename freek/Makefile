@@ -1,7 +1,7 @@
 TARGET  = freek
 OBJS    = main.o utils.o
 
-LIBS    = -lSceKernel_stub -lSceAppMgr_stub -lSceFios2_stub -lScePower_stub
+LIBS    = -lSceKernel_stub -lSceAppMgr_stub -lSceAppUtil_stub -lSceFios2_stub -lScePower_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
