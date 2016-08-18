@@ -48,16 +48,16 @@ void *psvDebugScreenGetVram() {
 }
 
 int psvDebugScreenGetX() {
-	return gX;
+	return gX / 16;
 }
 
 int psvDebugScreenGetY() {
-	return gY;
+	return gY / 16;
 }
 
 void psvDebugScreenSetXY(int x, int y) {
-	gX = x;
-	gY = y;
+	gX = x * 16;
+	gY = y * 16;
 }
 
  // #define LOG(args...)  		vita_logf (__FILE__, __LINE__, args)  ///< Write a log entry
@@ -127,6 +127,8 @@ static void printTextScreen(const char * text)
 			continue;
 		} else if (ch == '\r') {
 			gX = 0;
+			continue;
+		} else if (ch >= 0x80) {
 			continue;
 		}
 

@@ -33,10 +33,7 @@
 
 #include <sqlite3.h>
 
-#include "graphics.h"
-
-#include "self.h"
-#include "elf.h"
+#include "../common/graphics.h"
 
 int sceKernelGetProcessId();
 
@@ -55,7 +52,6 @@ int sceKernelGetProcessId();
 #define APP0_EBOOT_BIN "app0:eboot.bin"
 
 static char pspemu_path[16];
-static char contentid[48];
 static char titleid[12];
 
 int debugPrintf(char *text, ...) {
@@ -367,10 +363,6 @@ int main(int argc, char *argv[]) {
 	// Get pspemu path
 	memset(pspemu_path, 0, sizeof(pspemu_path));
 	sceAppMgrPspSaveDataRootMount(pspemu_path);
-
-	// Get content id
-	memset(contentid, 0, sizeof(contentid));
-	sceAppMgrAppParamGetString(sceKernelGetProcessId(), SCE_APPMGR_APP_PARAM_CONTENT_ID, contentid, sizeof(contentid));
 
 	// Get title id
 	memset(titleid, 0, sizeof(titleid));

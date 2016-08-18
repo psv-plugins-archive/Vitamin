@@ -35,17 +35,17 @@
 #include <zlib.h>
 
 #include "main.h"
-#include "utils.h"
-#include "graphics.h"
 
 #include "self.h"
 #include "elf.h"
 
-#include "../reserved_data.h"
+#include "../common/utils.h"
+#include "../common/graphics.h"
+#include "../common/reserved_data.h"
 
 // Loading a compressed eboot.bin results in c1-2722-3
 
-int _newlib_heap_size_user = 128 * 1024 * 1024;
+int _newlib_heap_size_user = 64 * 1024 * 1024;
 
 extern uint32_t payload_start, payload_end;
 
@@ -54,6 +54,25 @@ extern uint32_t payload_start, payload_end;
 static char titleid[17];
 
 char pspemu_path[16];
+
+int debugPrintf(char *text, ...) {
+	va_list list;
+	char string[512];
+
+	va_start(list, text);
+	vsprintf(string, text, list);
+	va_end(list);
+
+	char path[128];
+	sprintf(path, "%s/libc_log.txt", pspemu_path);
+	SceUID fd = sceIoOpen(path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777);
+	if (fd >= 0) {
+		sceIoWrite(fd, string, strlen(string));
+		sceIoClose(fd);
+	}
+
+	return 0;
+}
 
 typedef struct {
 	char *path;

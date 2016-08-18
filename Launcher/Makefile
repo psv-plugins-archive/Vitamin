@@ -1,7 +1,7 @@
-TARGET   = launcher
-OBJS     = main.o graphics.o font.o vita_sqlite.o
+TARGET  = launcher
+OBJS    = main.o vita_sqlite.o ../common/graphics.o ../common/font.o
 
-LIBS = -lSceKernel_stub -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lz -lsqlite3
+LIBS    = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub -lsqlite3
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc

@@ -19,7 +19,6 @@
 #include <psp2/appmgr.h>
 #include <psp2/apputil.h>
 #include <psp2/power.h>
-#include <psp2/sysmodule.h>
 #include <psp2/io/dirent.h>
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
@@ -32,10 +31,27 @@
 #include <string.h>
 
 #include "main.h"
-#include "utils.h"
 #include "fios2.h"
 
-#include "../reserved_data.h"
+#include "../common/utils.h"
+#include "../common/reserved_data.h"
+
+int debugPrintf(char *text, ...) {
+	va_list list;
+	char string[512];
+
+	va_start(list, text);
+	vsprintf(string, text, list);
+	va_end(list);
+
+	SceUID fd = sceIoOpen("ux0:freek.txt", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777);
+	if (fd >= 0) {
+		sceIoWrite(fd, string, strlen(string));
+		sceIoClose(fd);
+	}
+
+	return 0;
+}
 
 int sceFiosInitializePatched(void *param) {
 	uint16_t size = (*(uint16_t *)param & 0xFFFE) >> 1;

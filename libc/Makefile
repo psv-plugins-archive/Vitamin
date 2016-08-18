@@ -1,7 +1,7 @@
 TARGET  = libc
-OBJS    = main.o utils.o payload.o graphics.o font.o
+OBJS    = main.o payload.o ../common/utils.o ../common/graphics.o ../common/font.o
 
-LIBS    = -lSceKernel_stub -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceSysmodule_stub -lz
+LIBS    = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc

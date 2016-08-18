@@ -22,7 +22,7 @@ Color psvDebugScreenSetBgColor(Color color);
 void *psvDebugScreenGetVram();
 int psvDebugScreenGetX();
 int psvDebugScreenGetY();
-void psvDebugScreenSetXY();
+void psvDebugScreenSetXY(int x, int y);
 
 enum {
 	COLOR_CYAN = 0xFFFFFF00,
@@ -32,4 +32,5 @@ enum {
 	COLOR_YELLOW = 0xFF00FFFF,
 	COLOR_GREY = 0xFF808080,
 	COLOR_GREEN = 0xFF00FF00,
+	COLOR_PURPLE = 0xFFFF00FF,
 };
