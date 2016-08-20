@@ -58,18 +58,6 @@ int debugPrintf(char *text, ...) {
 	return 0;
 }
 
-int isCartridge() {
-	char path[128];
-	sprintf(path, "gro0:app/%s/sce_sys/param.sfo", titleid);
-
-	SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
-	if (fd < 0)
-		return 0;
-
-	sceIoClose(fd);
-	return 1;
-}
-
 void writeSteroid(char *path) {
 	// Write steroid module
 	printf("Writing steroid.suprx...");
@@ -112,7 +100,7 @@ int main(int argc, char *argv[]) {
 	printLayout(game_info_string, mode == MODE_UPDATE ? "Dumping update files" : "Dumping full game");
 
 	// Dump process
-	if (isCartridge()) {
+	if (game_info.is_cartridge) {
 		sprintf(app_path, "gro0:app/%s", titleid);
 	} else {
 		sprintf(app_path, "ux0:app/%s", titleid);
