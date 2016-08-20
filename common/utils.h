@@ -21,6 +21,27 @@
 
 #include <psp2/moduleinfo.h>
 
+#define MAX_PATH_LENGTH 1024
+#define TRANSFER_SIZE 64 * 1024
+#define SCE_ERROR_ERRNO_EEXIST 0x80010011
+
+typedef struct SfoHeader {
+	uint32_t magic;
+	uint32_t version;
+	uint32_t keyofs;
+	uint32_t valofs;
+	uint32_t count;
+} __attribute__((packed)) SfoHeader;
+
+typedef struct SfoEntry {
+	uint16_t nameofs;
+	uint8_t  alignment;
+	uint8_t  type;
+	uint32_t valsize;
+	uint32_t totalsize;
+	uint32_t dataofs;
+} __attribute__((packed)) SfoEntry;
+
 typedef struct {
 	uint16_t size;
 	uint16_t lib_version;
@@ -57,6 +78,13 @@ typedef struct {
 
 int ReadFile(char *file, void *buf, int size);
 int WriteFile(char *file, void *buf, int size);
+
+int copyPath(char *src_path, char *dst_path);
+int removePath(char *path);
+
+void getSizeString(char *string, uint64_t size);
+
+int getSfoString(void *buffer, char *name, char *string, int length);
 
 uint32_t findModuleImport(SceModuleInfo *mod_info, uint32_t text_addr, char *libname, uint32_t nid);
 

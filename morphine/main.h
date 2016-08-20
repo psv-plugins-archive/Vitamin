@@ -16,7 +16,15 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-typedef struct {
-	uint32_t stubs[32];
-	char path[64];
-} ReservedData;
+#ifndef __MAIN_H__
+#define __MAIN_H__
+
+int sceKernelGetProcessId();
+
+#define SCE_APPMGR_APP_PARAM_CONTENT_ID 6
+#define SCE_APPMGR_APP_PARAM_CATEGORY 8
+#define SCE_APPMGR_APP_PARAM_TITLE_ID 12
+
+#define printf psvDebugScreenPrintf
+
+#endif

@@ -10,6 +10,8 @@ void psvDebugScreenInit();
 // clears screen with a given color
 void psvDebugScreenClear(int bg_color);
 
+void psvDebugScreenClearMargin(int bg_color);
+
 // printf to the screen
 void psvDebugScreenPrintf(const char *format, ...);
 
@@ -20,17 +22,26 @@ Color psvDebugScreenSetFgColor(Color color);
 Color psvDebugScreenSetBgColor(Color color);
 
 void *psvDebugScreenGetVram();
+
 int psvDebugScreenGetX();
 int psvDebugScreenGetY();
 void psvDebugScreenSetXY(int x, int y);
 
-enum {
-	COLOR_CYAN = 0xFFFFFF00,
-	COLOR_WHITE = 0xFFFFFFFF,
-	COLOR_BLACK = 0xFF000000,
-	COLOR_RED = 0xFF0000FF,
-	COLOR_YELLOW = 0xFF00FFFF,
-	COLOR_GREY = 0xFF808080,
-	COLOR_GREEN = 0xFF00FF00,
-	COLOR_PURPLE = 0xFFFF00FF,
-};
+void psvDebugScreenResetMargin();
+void psvDebugScreenSetLeftMargin(int left_margin);
+void psvDebugScreenSetRightMargin(int right_margin);
+void psvDebugScreenSetTopMargin(int top_margin);
+void psvDebugScreenSetBottomMargin(int bottom_margin);
+
+#define DARKBLUE 0x003F1F00
+#define YELLOW 0x007FFFFF
+#define WHITE 0x00FFFFFF
+#define CYAN 0x00FFFF7F
+#define GREEN 0x007FFF00
+#define RED 0x000000FF
+
+#define BLUE 0x00FF7F00
+
+#define BLACK 0x00000000
+
+#define GRAY 0x007F7F7F

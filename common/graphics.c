@@ -9,6 +9,8 @@
 #include <psp2/kernel/sysmem.h>
 #include <psp2/kernel/threadmgr.h>
 
+#define FONT_SIZE 16
+
 enum {
 	SCREEN_WIDTH = 960,
 	SCREEN_HEIGHT = 544,
@@ -33,6 +35,7 @@ extern u8 msx[];
 void* g_vram_base;
 static int gX = 0;
 static int gY = 0;
+static int g_left_margin = 0, g_right_margin = 60, g_top_margin = 0, g_bottom_margin = 34;
 
 static Color g_fg_color;
 static Color g_bg_color;
@@ -48,16 +51,63 @@ void *psvDebugScreenGetVram() {
 }
 
 int psvDebugScreenGetX() {
-	return gX / 16;
+	return gX / FONT_SIZE;
 }
 
 int psvDebugScreenGetY() {
-	return gY / 16;
+	return gY / FONT_SIZE;
 }
 
 void psvDebugScreenSetXY(int x, int y) {
-	gX = x * 16;
-	gY = y * 16;
+	gX = x * FONT_SIZE;
+	gY = y * FONT_SIZE;
+
+	if (gX < g_left_margin * FONT_SIZE)
+		gX = g_left_margin * FONT_SIZE;
+	
+	if (gX > g_right_margin * FONT_SIZE)
+		gX = g_right_margin * FONT_SIZE;
+	
+	if (gY < g_top_margin * FONT_SIZE)
+		gY = g_top_margin * FONT_SIZE;
+	
+	if (gY > g_bottom_margin * FONT_SIZE)
+		gY = g_bottom_margin * FONT_SIZE;
+}
+
+void psvDebugScreenResetMargin() {
+	g_left_margin = 0;
+	g_right_margin = 60;
+	g_top_margin = 0;
+	g_bottom_margin = 34;
+}
+
+void psvDebugScreenSetLeftMargin(int left_margin) {
+	g_left_margin = left_margin;
+	
+	if (gX < g_left_margin * FONT_SIZE)
+		gX = g_left_margin * FONT_SIZE;
+}
+
+void psvDebugScreenSetRightMargin(int right_margin) {
+	g_right_margin = right_margin;
+	
+	if (gX > g_right_margin * FONT_SIZE)
+		gX = g_right_margin * FONT_SIZE;
+}
+
+void psvDebugScreenSetTopMargin(int top_margin) {
+	g_top_margin = top_margin;
+	
+	if (gY < g_top_margin * FONT_SIZE)
+		gY = g_top_margin * FONT_SIZE;
+}
+
+void psvDebugScreenSetBottomMargin(int bottom_margin) {
+	g_bottom_margin = bottom_margin;
+	
+	if (gY > g_bottom_margin * FONT_SIZE)
+		gY = g_bottom_margin * FONT_SIZE;
 }
 
  // #define LOG(args...)  		vita_logf (__FILE__, __LINE__, args)  ///< Write a log entry
@@ -95,12 +145,41 @@ void psvDebugScreenInit() {
 
 void psvDebugScreenClear(int bg_color)
 {
-	gX = gY = 0;
+	gX = g_left_margin * FONT_SIZE;
+	gY = g_top_margin * FONT_SIZE;
+
 	int i;
 	color_t *pixel = (color_t *)getVramDisplayBuffer();
 	for(i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
 		pixel->rgba = bg_color;
 		pixel++;
+	}
+}
+
+void psvDebugScreenClearMargin(int bg_color) {
+	gX = g_left_margin * FONT_SIZE;
+	gY = g_top_margin * FONT_SIZE;
+
+	color_t *pixel = (color_t *)getVramDisplayBuffer();
+
+	int y;
+	for (y = gY; y < ((g_bottom_margin + 1) * FONT_SIZE); y++) {
+		int x;
+		for (x = gX; x < ((g_right_margin + 1) * FONT_SIZE); x++) {
+			pixel[x + y * LINE_SIZE].rgba = bg_color;
+		}
+	}
+}
+
+void psvDebugScreenClearLineMargin(int bg_color) {
+	color_t *pixel = (color_t *)getVramDisplayBuffer();
+
+	int y;
+	for (y = gY; y < gY + FONT_SIZE; y++) {
+		int x;
+		for (x = gX; x < ((g_right_margin + 1) * FONT_SIZE); x++) {
+			pixel[x + y * LINE_SIZE].rgba = bg_color;
+		}
 	}
 }
 
@@ -112,21 +191,23 @@ static void printTextScreen(const char * text)
 	Color *vram;
 
 	for (c = 0; c < strlen(text); c++) {
-		if (gX + 16 > SCREEN_WIDTH) {
-			gY += 16;
-			gX = 0;
+		if (gX > (g_right_margin * FONT_SIZE)) {
+			gY += FONT_SIZE;
+			gX = g_left_margin * FONT_SIZE;
+			psvDebugScreenClearLineMargin(g_bg_color);
 		}
-		if (gY + 16 > SCREEN_HEIGHT) {
-			gY = 0;
-			psvDebugScreenClear(g_bg_color);
+		if (gY > (g_bottom_margin * FONT_SIZE)) {
+			gY = g_top_margin * FONT_SIZE;
+			psvDebugScreenClearLineMargin(g_bg_color);
 		}
 		char ch = text[c];
 		if (ch == '\n') {
-			gX = 0;
-			gY += 16;
+			gX = g_left_margin * FONT_SIZE;
+			gY += FONT_SIZE;
+			psvDebugScreenClearLineMargin(g_bg_color);
 			continue;
 		} else if (ch == '\r') {
-			gX = 0;
+			gX = g_left_margin * FONT_SIZE;
 			continue;
 		} else if (ch >= 0x80) {
 			continue;
@@ -153,7 +234,7 @@ static void printTextScreen(const char * text)
 			}
 			vram += 2 * LINE_SIZE;
 		}
-		gX += 16;
+		gX += FONT_SIZE;
 	}
 }
 

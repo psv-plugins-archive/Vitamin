@@ -33,8 +33,7 @@
 #include "main.h"
 #include "fios2.h"
 
-#include "../common/utils.h"
-#include "../common/reserved_data.h"
+#include "../common/steroid_param.h"
 
 int debugPrintf(char *text, ...) {
 	va_list list;
@@ -44,7 +43,7 @@ int debugPrintf(char *text, ...) {
 	vsprintf(string, text, list);
 	va_end(list);
 
-	SceUID fd = sceIoOpen("ux0:freek.txt", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777);
+	SceUID fd = sceIoOpen("ux0:steroid_log.txt", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777);
 	if (fd >= 0) {
 		sceIoWrite(fd, string, strlen(string));
 		sceIoClose(fd);
@@ -240,27 +239,19 @@ int sceFiosInitializePatched(void *param) {
 int sceAppUtilAppParamGetIntPatched(SceAppUtilAppParamId paramId, int *value) {
 	int res = sceAppUtilAppParamGetInt(paramId, value);
 
-	if (paramId == SCE_APPUTIL_APPPARAM_ID_SKU_FLAG) {
-		if (value && *value == SCE_APPUTIL_APPPARAM_SKU_FLAG_TRIAL)
-			*value = SCE_APPUTIL_APPPARAM_SKU_FLAG_FULL;
+	if (res >= 0) {
+		if (paramId == SCE_APPUTIL_APPPARAM_ID_SKU_FLAG) {
+			if (value && *value == SCE_APPUTIL_APPPARAM_SKU_FLAG_TRIAL)
+				*value = SCE_APPUTIL_APPPARAM_SKU_FLAG_FULL;
+		}
 	}
-	
+
 	return res;
 }
 
 // BATMAN: crash in libc + 0x14198 :(
 
-int _start(SceSize args, void *argp) {
-	// Get titleid
-	char titleid[12];
-	memset(titleid, 0, sizeof(titleid));
-	sceAppMgrAppParamGetString(sceKernelGetProcessId(), SCE_APPMGR_APP_PARAM_TITLE_ID, titleid, sizeof(titleid));
-
-	debugPrintf("Freek module loaded with %s\n", titleid);
-
-	// Set CPU clock to 444mhz
-	scePowerSetArmClockFrequency(444);
-
+int initStubPatches() {
 	int res;
 
 	SceUID mod_list[MAX_MODULES];
@@ -282,12 +273,126 @@ int _start(SceSize args, void *argp) {
 	uint32_t data_addr = (uint32_t)info.segments[1].vaddr;
 	uint32_t data_size = (uint32_t)info.segments[1].memsz;
 
-	// Reserved data
-	ReservedData *reserved_data = (ReservedData *)(data_addr + data_size - sizeof(ReservedData));
+	// Steroid param
+	SteroidParam *steroid_param = (SteroidParam *)(data_addr + data_size - sizeof(SteroidParam));
 
 	// Patch functions
-	reserved_data->stubs[0] = (uint32_t)sceFiosInitializePatched + 1;
-	reserved_data->stubs[1] = (uint32_t)sceAppUtilAppParamGetIntPatched + 1;
+	steroid_param->stubs[0] = (uint32_t)sceFiosInitializePatched + 1;
+	steroid_param->stubs[1] = (uint32_t)sceAppUtilAppParamGetIntPatched + 1;
+
+	return 0;
+}
+
+void trim(char *str) {
+	int len = strlen(str);
+
+	int i;
+	for (i = len - 1; i >= 0; i--) {
+		if (str[i] == 0x20 || str[i] == '\t') {
+			str[i] = 0;
+		} else {
+			break;
+		}
+	}
+}
+
+int GetPlugin(char *buf, int size, char *str, int *activated) {
+	char ch = 0;
+	int n = 0;
+	int i = 0;
+	char *s = str;
+
+	while (1) {
+		if (i >= size)
+			break;
+
+		ch = buf[i];
+
+		if (ch < 0x20 && ch != '\t') {
+			if (n != 0) {
+				i++;
+				break;
+			}
+		} else {
+			*str++ = ch;
+			n++;
+		}
+
+		i++;
+	}
+
+	trim(s);
+
+	*activated = 0;
+
+	if (i > 0) {
+		char *p = strpbrk(s, " \t");
+		if (p) {
+			char *q = p + 1;
+
+			while (*q < 0)
+				q++;
+
+			if (strcmp(q, "1") == 0) {
+				*activated = 1;
+			}
+
+			*p = 0;
+		}
+	}
+
+	return i;
+}
+
+void loadPlugins(char *path) {
+	SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
+	if (fd >= 0) {
+		static char buffer[1024];
+		int size = sceIoRead(fd, buffer, sizeof(buffer));
+		char *p = buffer;
+
+		int res = 0;
+		char plugin[64];
+
+		do {
+			int activated = 0;
+			memset(plugin, 0, sizeof(plugin));
+
+			res = GetPlugin(p, size, plugin, &activated);
+
+			if (res > 0) {
+				if (activated) {
+					sceKernelLoadStartModule(plugin, 0, NULL, 0, NULL, NULL);
+				}
+
+				size -= res;
+				p += res;
+			}
+		} while (res > 0);
+
+		sceIoClose(fd);
+	}	
+}
+
+int _start(SceSize args, void *argp) {
+	// Get titleid
+	char titleid[12];
+	memset(titleid, 0, sizeof(titleid));
+	sceAppMgrAppParamGetString(sceKernelGetProcessId(), SCE_APPMGR_APP_PARAM_TITLE_ID, titleid, sizeof(titleid));
+
+	debugPrintf("Steroid module loaded with %s\n", titleid);
+
+	// Init stub patches
+	initStubPatches();
+
+	// Set CPU clock to 444mhz
+	scePowerSetArmClockFrequency(444);
+
+	// Load plugins
+	char path[128];
+	sprintf(path, "ux0:plugins/%s.txt", titleid);
+	loadPlugins(path);
+	loadPlugins("ux0:plugins/game.txt");
 
 	return 0;
 }

@@ -1,11 +1,11 @@
-TARGET  = freek
-OBJS    = main.o ../common/utils.o
+TARGET  = lsd
+OBJS    = main.o payload.o ../common/utils.o ../common/graphics.o ../common/font.o
 
-LIBS    = -lSceAppMgr_stub -lSceAppUtil_stub -lSceFios2_stub -lSceKernel_stub -lScePower_stub
+LIBS    = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
-CFLAGS  = -Wl,-q -Wall -O3 -nostartfiles
+CFLAGS  = -Wl,-q -Wall -O3
 ASFLAGS = $(CFLAGS)
 
 all: $(TARGET).suprx
@@ -23,5 +23,5 @@ clean:
 	@rm -rf $(TARGET).suprx $(TARGET).velf $(TARGET).elf $(OBJS)
 
 send: $(TARGET).suprx
-	curl -T $(TARGET).suprx ftp://$(PSVITAIP):1337/ux0:/freek.suprx
+	curl -T $(TARGET).suprx ftp://$(PSVITAIP):1337/ux0:/DUMP00000/sce_module/libc_.suprx
 	@echo "Sent."

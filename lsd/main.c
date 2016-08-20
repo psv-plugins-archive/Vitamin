@@ -17,7 +17,6 @@
 */
 
 #include <psp2/appmgr.h>
-#include <psp2/ctrl.h>
 #include <psp2/display.h>
 #include <psp2/moduleinfo.h>
 #include <psp2/io/dirent.h>
@@ -36,24 +35,21 @@
 
 #include "main.h"
 
-#include "self.h"
-#include "elf.h"
-
 #include "../common/utils.h"
 #include "../common/graphics.h"
-#include "../common/reserved_data.h"
+#include "../common/steroid_param.h"
+#include "../common/common.h"
 
-// Loading a compressed eboot.bin results in c1-2722-3
+#include "self.h"
+#include "elf.h"
 
 int _newlib_heap_size_user = 64 * 1024 * 1024;
 
 extern uint32_t payload_start, payload_end;
 
-#define PLUGIN_PATH "ux0:freek.suprx"
-
-static char titleid[17];
-
-char pspemu_path[16];
+static char dump_path[128];
+static char pspemu_path[16];
+static char titleid[12];
 
 int debugPrintf(char *text, ...) {
 	va_list list;
@@ -85,18 +81,11 @@ typedef struct {
 
 	uint32_t data_addr;
 	uint32_t data_size;
-	uint32_t reserved_data_addr;
+	uint32_t steroid_param_addr;
 	void *data_buf;
 
 	uint32_t sce_module_info_offset;
 } SelfArguments;
-
-// ux0:app/ABCD01234/sce_module/steriod.suprx
-
-// TODO: dump additional self
-
-// TODO: pgf font?
-// TODO: appmgr api to launch manual
 
 int hijackStub(SelfArguments *args, uint32_t placeholder_stub, char *libname, uint32_t nid, int stub_position) {
 	uint32_t function = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, libname, nid);
@@ -106,7 +95,7 @@ int hijackStub(SelfArguments *args, uint32_t placeholder_stub, char *libname, ui
 	uint32_t addr = function - args->text_addr;
 
 	// Jump to stub pointer
-	uint32_t address = args->data_addr + args->reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->stubs[stub_position]);
+	uint32_t address = args->data_addr + args->steroid_param_addr + (uint32_t)&(((SteroidParam *)NULL)->stubs[stub_position]);
 	*(uint32_t *)(args->text_buf + addr + 0x0) = 0xE3004000 | (((address & 0xFFFF) & 0xF000) << 4) | ((address & 0xFFFF) & 0xFFF); // movw v1, #low
 	*(uint32_t *)(args->text_buf + addr + 0x4) = 0xE3404000 | (((address >> 16) & 0xF000) << 4) | ((address >> 16) & 0xFFF); // movt v1, #high
 	*(uint32_t *)(args->text_buf + addr + 0x8) = 0xE5944000; // ldr v1, [v1]
@@ -153,11 +142,11 @@ int manipulateSelf(SelfArguments *args) {
 		args->text_size += payload_size;
 	}
 
-	// Reserved data address
-	args->reserved_data_addr = args->data_size;
+	// Steroid param address
+	args->steroid_param_addr = args->data_size;
 
 	// Reserve space in data segment
-	args->data_size += sizeof(ReservedData);
+	args->data_size += sizeof(SteroidParam);
 
 	// Copy .text to buffer
 	args->text_buf = malloc(args->text_size);
@@ -169,11 +158,13 @@ int manipulateSelf(SelfArguments *args) {
 	memset(args->data_buf, 0, args->data_size);
 	memcpy(args->data_buf, (void *)args->data_addr, real_data_size);
 
-	// Reserved data
-	ReservedData *reserved_data = (ReservedData *)(args->data_buf + args->reserved_data_addr);
+	// Steroid param
+	SteroidParam *steroid_param = (SteroidParam *)(args->data_buf + args->steroid_param_addr);
 
-	// Copy plugin path to reserved space in data
-	strcpy(reserved_data->path, PLUGIN_PATH);
+	// Copy plugin path
+	char path[128];
+	sprintf(path, "%s/sce_module/steroid.suprx", dump_path);
+	strcpy(steroid_param->path, path);
 
 	// Use __sce_aeabi_idiv0 as placeholder stub
 	uint32_t placeholder_stub = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, "SceLibKernel", 0x4373B548);
@@ -221,7 +212,7 @@ int manipulateSelf(SelfArguments *args) {
 			}
 
 			// Adjust arguments
-			*(uint32_t *)(args->text_buf + args->payload_addr + 0x30) = args->data_addr + args->reserved_data_addr + (uint32_t)&(((ReservedData *)NULL)->path); // path
+			*(uint32_t *)(args->text_buf + args->payload_addr + 0x30) = args->data_addr + args->steroid_param_addr + (uint32_t)&(((SteroidParam *)NULL)->path); // path
 			*(uint32_t *)(args->text_buf + args->payload_addr + 0x34) = hijack_stub; // sceKernelLoadStartModule
 			*(uint32_t *)(args->text_buf + args->payload_addr + 0x38) = args->text_addr + module_start_ori + 1; // module_start
 		}
@@ -232,6 +223,8 @@ int manipulateSelf(SelfArguments *args) {
 
 int writeSelf(SelfArguments *args) {
 /*
+	// Loading a compressed eboot.bin results in c1-2722-3
+
 	// Compression
 	uint32_t compressed_text_size = compressBound(args->text_size);
 	uint32_t compressed_data_size = compressBound(args->data_size);
@@ -365,9 +358,9 @@ int writeSelf(SelfArguments *args) {
 	sinfo_data.compression = 1;
 	sinfo_data.encryption = 2;
 
-	// Write self to ux0:pspemu/TITLEID/
+	// Write self
 	char path[128];
-	sprintf(path, "%s/%s/%s", pspemu_path, titleid, args->path + strlen("app0:"));
+	sprintf(path, "%s/%s", dump_path, args->path + strlen("app0:"));
 	SceUID fd = sceIoOpen(path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
 	if (fd < 0)
 		return fd;
@@ -459,7 +452,7 @@ int dumpSelf(char *path, int flags, int add_payload) {
 	debugPrintf("data_size: 0x%08X\n", args.data_size);
 	debugPrintf("sce_module_info_offset: 0x%08X\n", args.sce_module_info_offset);
 /*
-	// TODO: remove this. DEBUG ONLY: dump text and addr separately
+	// DEBUG ONLY: dump text and addr separately
 	char string[128];
 
 	sprintf(string, "%s/%s_0_0x%08X", pspemu_path, info.module_name, (unsigned int)args.text_addr);
@@ -519,13 +512,10 @@ int dumpExecutable() {
 	char file[128];
 	sprintf(file, "app0:%s", p + 1);
 
-	printf("Writing ux0:pspemu/%s/%s...", titleid, file + strlen("app0:"));
+	printf("Building %s...", p + 1);
 
 	// Dump executable
-	char path[128];
-	sprintf(path, "%s/%s", pspemu_path, titleid);
-	sceIoMkdir(path, 0777);
-
+	sceIoMkdir(dump_path, 0777);
 	res = dumpSelf(file, 0, 1);
 	if (res < 0) {
 		printf("Error 0x%08X\n");
@@ -536,23 +526,7 @@ int dumpExecutable() {
 	return 0;
 }
 
-void printInfo() {
-	psvDebugScreenSetFgColor(COLOR_CYAN);
-	printf("\nVitamin\n");
-	psvDebugScreenSetFgColor(COLOR_WHITE);
-	printf("by Team FreeK\n\n");
-}
-
 int main(int argc, char *argv[]) {
-	SceUID fd;
-	char path[128];
-
-	// Init screen
-	psvDebugScreenInit();
-
-	// Info
-	printInfo();
-
 	// Get pspemu path
 	memset(pspemu_path, 0, sizeof(pspemu_path));
 	sceAppMgrPspSaveDataRootMount(pspemu_path);
@@ -561,19 +535,44 @@ int main(int argc, char *argv[]) {
 	memset(titleid, 0, sizeof(titleid));
 	sceAppMgrAppParamGetString(sceKernelGetProcessId(), SCE_APPMGR_APP_PARAM_TITLE_ID, titleid, sizeof(titleid));
 
-	sprintf(path, "%s/updt.bin", pspemu_path);
-	if ((fd = sceIoOpen(path, SCE_O_RDONLY, 0)) >= 0) {
-		sceIoClose(fd);
-		sceIoRemove(path);
-		strcat(titleid, "_updt");
-	}
+	// Read mode
+	int mode = 0;
+	ReadFile("app0:mode.bin", &mode, sizeof(int));
+
+	// Read game info
+	GameInfo game_info;
+	ReadFile("app0:info.bin", &game_info, sizeof(GameInfo));
+
+	// Init screen
+	psvDebugScreenInit();
+	psvDebugScreenClear(DARKBLUE);
+	psvDebugScreenSetBgColor(DARKBLUE);
+
+	// Layout
+	char *version = mode == MODE_UPDATE ? game_info.version_update : game_info.version_game;
+	char game_info_string[512];
+	sprintf(game_info_string, "Name   : %s\n"
+							  "Game ID: %s\n"
+							  "Version: %s\n",
+							  game_info.name,
+							  game_info.titleid,
+							  (version[0] == '0') ? (version + 1) : version);
+	printLayout(game_info_string, mode == MODE_UPDATE ? "Dumping update files" : "Dumping full game");
+
+	// Dump path
+	sprintf(dump_path, "%s/Vitamin", pspemu_path);
 
 	// Dump exectuable
 	dumpExecutable();
 
-	printf("Auto-exiting in 5 seconds...\n");
+	// Write finish titleid
+	char path[128];
+	sprintf(path, "%s/Vitamin/finish.bin", pspemu_path);
+	WriteFile(path, titleid, strlen(titleid) + 1);
 
-	sceKernelDelayThread(5 * 1000 * 1000);
+	// Launch Vitamin app to finish
+	sceKernelDelayThread(1 * 1000 * 1000);
+	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
 	sceKernelExitProcess(0);
 
 	return 0;

@@ -1,8 +1,8 @@
 TITLE_ID = VITAMIN00
-TARGET   = Vitamin
-OBJS     = main.o ../common/graphics.o ../common/font.o
+TARGET   = injection
+OBJS     = main.o ../common/utils.o ../common/graphics.o ../common/font.o
 
-LIBS     = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub -lSceSysmodule_stub
+LIBS     = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub
 
 PREFIX   = arm-vita-eabi
 CC       = $(PREFIX)-gcc
@@ -12,7 +12,7 @@ ASFLAGS  = $(CFLAGS)
 all: $(TARGET).vpk
 
 %.vpk: eboot.bin
-	vita-mksfoex -s TITLE_ID=$(TITLE_ID) "$(TARGET)" param.sfo
+	vita-mksfoex -s TITLE_ID=$(TITLE_ID) "Vitamin" param.sfo
 	vita-pack-vpk -s param.sfo -b eboot.bin $@
 
 eboot.bin: $(TARGET).velf

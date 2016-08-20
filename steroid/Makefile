@@ -1,11 +1,11 @@
-TARGET  = launcher
-OBJS    = main.o vita_sqlite.o ../common/graphics.o ../common/font.o
+TARGET  = steroid
+OBJS    = main.o
 
-LIBS    = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub -lsqlite3
+LIBS    = -lSceAppMgr_stub -lSceAppUtil_stub -lSceFios2_stub -lSceKernel_stub -lScePower_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
-CFLAGS  = -Wl,-q -Wall -O3
+CFLAGS  = -Wl,-q -Wall -O3 -nostartfiles
 ASFLAGS = $(CFLAGS)
 
 all: $(TARGET).suprx
@@ -23,5 +23,5 @@ clean:
 	@rm -rf $(TARGET).suprx $(TARGET).velf $(TARGET).elf $(OBJS)
 
 send: $(TARGET).suprx
-	curl -T $(TARGET).suprx ftp://$(PSVITAIP):1337/ux0:/DUMP00000/eboot.bin
+	curl -T $(TARGET).suprx ftp://$(PSVITAIP):1337/ux0:/steroid.suprx
 	@echo "Sent."
