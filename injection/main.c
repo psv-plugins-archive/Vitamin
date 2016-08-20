@@ -181,7 +181,7 @@ int getGames(GameInfo *game_infos, char **game_entries) {
 
 	// Open app folder
 	count = addGames("ux0:app", 0, count, game_infos, game_entries);
-
+/*
 	int i;
 	for (i = 0; i < 12; i++) {
 		char *name = malloc(256);
@@ -189,7 +189,7 @@ int getGames(GameInfo *game_infos, char **game_entries) {
 		game_entries[count] = name;
 		count++;
 	}
-
+*/
 	return count;
 }
 
@@ -624,7 +624,7 @@ MAIN_MENU:
 	char **option_entries = has_update ? option_entries_with_update : option_entries_without_update;
 	int option = doMenu(game_info_string, "Choose option:", has_update ? 3 : 2, option_entries, has_update ? 4 : 3);
 
-	char *version = option == 0 ? game_infos[sel_game].version_update : game_infos[sel_game].version_game;
+	char *version = option == 0 ? game_infos[sel_game].version_game : game_infos[sel_game].version_update;
 	sprintf(game_info_string, "Name   : %s\n"
 							  "Game ID: %s\n"
 							  "Version: %s\n",
