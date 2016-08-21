@@ -63,7 +63,7 @@ void printLayout(char *info, char *title) {
 	int y = psvDebugScreenGetY();
 
 	psvDebugScreenSetLeftMargin(1);
-	psvDebugScreenSetXY(0, 26);
+	psvDebugScreenSetXY(0, 27);
 	psvDebugScreenSetFgColor(WHITE);
 	printf("----------------------------------------------------------\n\n");
 

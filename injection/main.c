@@ -48,6 +48,7 @@
 // TODO: param.sfo fix
 // TODO: additional selfs support
 // TODO: progressbar
+// TODO: more error handling
 
 #define MAX_GAMES 128
 
@@ -71,12 +72,12 @@ int debugPrintf(char *text, ...) {
 }
 
 void *allocateReadFile(char *path) {
-	// Open param.sfo
+	// Open file
 	SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
 	if (fd < 0)
 		return NULL;
 
-	// Get param.sfo size
+	// Get file size
 	uint64_t off = sceIoLseek(fd, 0, SCE_SEEK_CUR);
 	uint64_t size = sceIoLseek(fd, 0, SCE_SEEK_END);
 	sceIoLseek(fd, off, SCE_SEEK_SET);
@@ -648,7 +649,7 @@ MAIN_MENU:
 	// Back to main menu
 	psvDebugScreenResetMargin();
 	psvDebugScreenSetLeftMargin(2);
-	psvDebugScreenSetXY(0, 28);
+	psvDebugScreenSetXY(0, 29);
 	psvDebugScreenSetFgColor(CYAN);
 	printf("> Back...\n");
 	sceKernelDelayThread(DELAY);

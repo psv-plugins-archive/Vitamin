@@ -9,6 +9,10 @@ clean:
 	-rm "morphine/lsd.h"
 	-rm "injection/eboot_bin.h"
 	-rm "injection/param_sfo.h"
+	make -C injection clean
+	make -C morphine clean
+	make -C lsd clean
+	make -C steroid clean
 
 _steroid:
 	make -C steroid clean
