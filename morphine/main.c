@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 	} else {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s", titleid, game_info.version_game);
-		//copyPath(app_path, dst_path);
+		copyPath(app_path, dst_path);
 
 		// Write steroid module
 		writeSteroid(dst_path);
