@@ -37,6 +37,8 @@
 #include "../common/graphics.h"
 #include "../common/common.h"
 
+#include "../minizip/makezip.h"
+
 #include "eboot_bin.h"
 #include "param_sfo.h"
 
@@ -44,8 +46,6 @@
 
 #define DELAY 700 * 1000
 
-// TODO: sqlite
-// TODO: remove game path first
 // TODO: disable autosuspend
 // TODO: add check if manual is open
 // TODO: check ms space
@@ -300,21 +300,20 @@ int finishDump(GameInfo *game_info, int mode) {
 	int res;
 	char path[128], patch_path[128], tmp_path[128];
 
-	// Copy converted eboot.bin
-	sprintf(path, "ux0:Vitamin/%s%s%s/eboot.bin", game_info->titleid, mode == MODE_UPDATE ? "_UPDATE_" : "_FULLGAME_", mode == MODE_UPDATE ? game_info->version_update : game_info->version_game);
-	copyPath("ux0:pspemu/Vitamin/eboot.bin", path);
+	// Add converted eboot.bin
+	sprintf(path, "ux0:Vitamin/%s%s%s.VPK", game_info->titleid, mode == MODE_UPDATE ? "_UPDATE_" : "_FULLGAME_", mode == MODE_UPDATE ? game_info->version_update : game_info->version_game);
+	makeZip(path, "ux0:pspemu/Vitamin/eboot.bin", 19, 1, NULL);
 
 	// Remove Vitamin path in pspemu
 	removePath("ux0:pspemu/Vitamin");
 
-	/* Do we keep this here ? Might be useful for the user in case he wants to decrypt savedata...
+	// Do we keep this here ? Might be useful for the user in case he wants to decrypt savedata...
 	// Uninstall app.db modification
 	printf("Uninstalling app.db modification...");
 	res = uninstallAppDbMod();
 	if (res < 0)
 		goto ERROR;
 	printf("OK\n");
-	*/
 
 	sceKernelDelayThread(DELAY);
 	printf("Finishing...");
@@ -353,6 +352,7 @@ int finishDump(GameInfo *game_info, int mode) {
 ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
+	sceKernelDelayThread(10 * 1000 * 1000);
 
 	return res;
 }
@@ -520,6 +520,11 @@ int dumpFullGame(GameInfo *game_info) {
 	sceAppMgrDestroyOtherApp();
 	sceKernelDelayThread(1 * 1000 * 1000);
 
+	// Backup savedata and let the application create a new savegame with its new encryption key
+	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
+	if (res < 0)// && res != 0x80010002)
+		goto ERROR;
+
 	// Patch path and temp path
 	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
 	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
@@ -527,11 +532,6 @@ int dumpFullGame(GameInfo *game_info) {
 	// Backup original patch
 	res = sceIoRename(patch_path, tmp_path);
 	if (res < 0 && res != 0x80010002)
-		goto ERROR;
-
-	// Backup savedata and let the application create a new savegame with its new encryption key
-	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
-	if (res < 0)// && res != 0x80010002)
 		goto ERROR;
 
 	// Inject morphine
@@ -557,6 +557,7 @@ int dumpFullGame(GameInfo *game_info) {
 ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
+	sceKernelDelayThread(10 * 1000 * 1000);
 
 	return res;
 }
@@ -572,6 +573,11 @@ int dumpUpdate(GameInfo *game_info) {
 	sceAppMgrDestroyOtherApp();
 	sceKernelDelayThread(1 * 1000 * 1000);
 
+	// Backup savedata and let the application create a new savegame with its new encryption key
+	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
+	if (res < 0)// && res != 0x80010002)
+		goto ERROR;
+
 	// App path and temp path
 	sprintf(app_path, "ux0:app/%s", game_info->titleid);
 	sprintf(tmp_path, "ux0:app/%s_org", game_info->titleid);
@@ -585,11 +591,6 @@ int dumpUpdate(GameInfo *game_info) {
 	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
 	res = sceIoRename(patch_path, app_path);
 	if (res < 0)
-		goto ERROR;
-
-	// Backup savedata and let the application create a new savegame with its new encryption key
-	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
-	if (res < 0)// && res != 0x80010002)
 		goto ERROR;
 
 	// Inject morphine
@@ -615,6 +616,7 @@ int dumpUpdate(GameInfo *game_info) {
 ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
+	sceKernelDelayThread(10 * 1000 * 1000);
 
 	return res;
 }

@@ -1,8 +1,8 @@
 TITLE_ID = VITAMIN00
 TARGET   = injection
-OBJS     = main.o ../common/utils.o ../common/graphics.o ../common/font.o vita_sqlite.o
+OBJS     = main.o ../common/utils.o ../common/graphics.o ../common/font.o vita_sqlite.o ../minizip/makezip.o ../minizip/zip.o ../minizip/ioapi.o
 
-LIBS     = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub libsqlite3.a
+LIBS     = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub -lz libsqlite3.a
 
 PREFIX   = arm-vita-eabi
 CC       = $(PREFIX)-gcc

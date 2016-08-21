@@ -58,26 +58,12 @@ int WriteFile(char *file, void *buf, int size) {
 }
 
 int copyFile(char *src_path, char *dst_path, uint64_t size) {
-	char *p = strrchr(src_path, '/');
-
-	// Ignore some files
-	if (strstr(src_path, "sce_module") || strstr(src_path, "keystone") || strstr(src_path, "clearsign")) {
-		return 0;
-	}
-
-	char size_string[16];
-	getSizeString(size_string, size);
-	psvDebugScreenPrintf("Writing %s (%s)...", p + 1, size_string);
-
 	SceUID fdsrc = sceIoOpen(src_path, SCE_O_RDONLY, 0);
-	if (fdsrc < 0) {
-		psvDebugScreenPrintf("Error 0x%08X\n", fdsrc);
+	if (fdsrc < 0)
 		return fdsrc;
-	}
 
 	SceUID fddst = sceIoOpen(dst_path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
 	if (fddst < 0) {
-		psvDebugScreenPrintf("Error 0x%08X\n", fddst);
 		sceIoClose(fdsrc);
 		return fddst;
 	}
@@ -93,8 +79,6 @@ int copyFile(char *src_path, char *dst_path, uint64_t size) {
 
 	sceIoClose(fddst);
 	sceIoClose(fdsrc);
-
-	psvDebugScreenPrintf("OK\n");
 
 	return 0;
 }

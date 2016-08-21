@@ -1,8 +1,8 @@
 TITLE_ID = MORPHINE0
 TARGET   = Morphine
-OBJS     = main.o ../common/utils.o ../common/graphics.o ../common/font.o
+OBJS     = main.o ../common/utils.o ../common/graphics.o ../common/font.o ../minizip/makezip.o ../minizip/zip.o ../minizip/ioapi.o
 
-LIBS     = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub
+LIBS     = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub -lz
 
 PREFIX   = arm-vita-eabi
 CC       = $(PREFIX)-gcc

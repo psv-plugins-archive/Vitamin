@@ -36,6 +36,8 @@
 #include "../common/graphics.h"
 #include "../common/common.h"
 
+#include "../minizip/makezip.h"
+
 #include "lsd.h"
 #include "steroid.h"
 
@@ -58,29 +60,18 @@ int debugPrintf(char *text, ...) {
 	return 0;
 }
 
-int writeSteroid(char *path) {
-	int res;
+int ignoreHandler(char *path) {
+	if (strstr(path, "eboot.bin") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
+		return 1;
+	}
 
-	// Write steroid module
-	printf("Writing steroid.suprx...");
-
-	char steroid_path[128];
-	sprintf(steroid_path, "%s/sce_module", path);
-	res = sceIoMkdir(steroid_path, 0777);
-	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
-		goto ERROR;
-
-	sprintf(steroid_path, "%s/sce_module/steroid.suprx", path);
-	res = WriteFile(steroid_path, steroid, size_steroid);
-	if (res < 0)
-		goto ERROR;
-
-	printf("OK\n");
 	return 0;
-	
-ERROR:
-	printf("Error 0x%08X\n", res);
-	return res;
+}
+
+void writeSteroid(char *dst_path) {
+	sceIoMkdir("ux0:pspemu/Vitamin/sce_module", 0777);
+	WriteFile("ux0:pspemu/Vitamin/sce_module/steroid.suprx", steroid, size_steroid);
+	makeZip(dst_path, "ux0:pspemu/Vitamin/sce_module/steroid.suprx", 19, 1, NULL);
 }
 
 int main(int argc, char *argv[]) {
@@ -123,20 +114,29 @@ int main(int argc, char *argv[]) {
 
 	if (mode == MODE_UPDATE) {
 		// Dump decrypted files
-		sprintf(dst_path, "ux0:Vitamin/%s_UPDATE_%s", titleid, game_info.version_update);
-		copyPath(app_path, dst_path);
+		sprintf(dst_path, "ux0:Vitamin/%s_UPDATE_%s.VPK", titleid, game_info.version_update);
+		sceIoRemove(dst_path);
+		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
 
 		// Write steroid module
 		writeSteroid(dst_path);
+
+		// Copy decrypted eboot.bin to temp location
+		sprintf(path, "%s/eboot.bin", app_path);
+		copyPath(path, "ux0:pspemu/Vitamin/eboot.bin");
 
 		// Destory all other apps (close manual to unlock files)
 		sceAppMgrDestroyOtherApp();
 		sceKernelDelayThread(1 * 1000 * 1000);
 
-		// Copy decrypted eboot.bin to ux0:patch for next stage
-		sprintf(path, "ux0:Vitamin/%s_UPDATE_%s/eboot.bin", titleid, game_info.version_update);
+		// eboot.bin patch path
 		sprintf(dst_path, "ux0:patch/%s/eboot.bin", titleid);
-		copyPath(path, dst_path);
+
+		// Delete *this* eboot.bin
+		sceIoRemove(dst_path);
+
+		// Move decrypted eboot.bin to ux0:patch for next stage
+		sceIoRename("ux0:pspemu/Vitamin/eboot.bin", dst_path);
 
 		// Backup patch in app folder
 		sprintf(tmp_path, "ux0:app/%s_patch", titleid);
@@ -147,8 +147,9 @@ int main(int argc, char *argv[]) {
 		sceIoRename(tmp_path, app_path);
 	} else {
 		// Dump decrypted files
-		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s", titleid, game_info.version_game);
-		copyPath(app_path, dst_path);
+		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s.VPK", titleid, game_info.version_game);
+		sceIoRemove(dst_path);
+		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
 
 		// Write steroid module
 		writeSteroid(dst_path);
@@ -175,7 +176,10 @@ int main(int argc, char *argv[]) {
 	WriteFile("ux0:pspemu/Vitamin/relaunch.bin", titleid, strlen(titleid) + 1);
 
 	// Launch Vitamin app to relaunch game
+	// TODO: make stable. sometimes this fails...
 	sceKernelDelayThread(1 * 1000 * 1000);
+	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
+	sceKernelDelayThread(1000); // Maybe this will make it stable
 	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
 	sceKernelExitProcess(0);
 
