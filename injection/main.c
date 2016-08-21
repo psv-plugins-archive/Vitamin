@@ -30,6 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <sqlite3.h>
+
 #include "main.h"
 #include "../common/utils.h"
 #include "../common/graphics.h"
@@ -37,6 +39,8 @@
 
 #include "eboot_bin.h"
 #include "param_sfo.h"
+
+#define APP_DB "ur0:shell/db/app.db"
 
 #define DELAY 700 * 1000
 
@@ -303,6 +307,15 @@ int finishDump(GameInfo *game_info, int mode) {
 	// Remove Vitamin path in pspemu
 	removePath("ux0:pspemu/Vitamin");
 
+	/* Do we keep this here ? Might be useful for the user in case he wants to decrypt savedata...
+	// Uninstall app.db modification
+	printf("Uninstalling app.db modification...");
+	res = uninstallAppDbMod();
+	if (res < 0)
+		goto ERROR;
+	printf("OK\n");
+	*/
+
 	sceKernelDelayThread(DELAY);
 	printf("Finishing...");
 
@@ -443,6 +456,59 @@ void openManualLaunchGame(GameInfo *game_info) {
 	sceKernelExitProcess(0);
 }
 
+int sql_simple_exec(sqlite3 *db, const char *sql) {
+	char *error = NULL;
+	sqlite3_exec(db, sql, NULL, NULL, &error);
+	if (error) {
+		printf("Failed to execute %s: %s\n", sql, error);
+		sqlite3_free(error);
+		return -1;
+	}
+	return 0;
+}
+
+int sql_multiple_exec(char *db_path, char *queries[]) {
+	int ret, i = 0;
+
+	sqlite3 *db;
+	ret = sqlite3_open(db_path, &db);
+	if (ret) {
+		printf("Failed to open the database: %s\n", sqlite3_errmsg(db));
+		return ret;
+	}
+
+	do {
+		ret = sql_simple_exec(db, queries[i]);
+		if (ret < 0) {
+			sqlite3_close(db);
+			return ret;
+		}
+	} while (queries[++i] != NULL);
+
+	sqlite3_close(db);
+	db = NULL;
+
+	return 0;
+}
+
+int installAppDbMod() {
+	char *queries[] = { "INSERT INTO `tbl_uri` VALUES ('NPXS10001',1,'ux0',NULL)",
+											"INSERT INTO `tbl_uri` VALUES ('NPXS10001',1,'gro0',NULL)",
+											"UPDATE tbl_appinfo SET val='vs0:app/NPXS10027/eboot.bin' WHERE key='3022202214' and titleid='NPXS10001'",
+											NULL };
+
+	return sql_multiple_exec(APP_DB, queries);
+}
+
+int uninstallAppDbMod() {
+	char *queries[] = { "DELETE FROM `tbl_uri` WHERE scheme='ux0'",
+											"DELETE FROM `tbl_uri` WHERE scheme='gro0'",
+											"UPDATE tbl_appinfo SET val='vs0:app/NPXS10001/eboot.bin' WHERE key='3022202214' and titleid='NPXS10001'",
+											NULL };
+
+	return sql_multiple_exec(APP_DB, queries);
+}
+
 int dumpFullGame(GameInfo *game_info) {
 	int res;
 	char patch_path[128], tmp_path[128];
@@ -474,6 +540,13 @@ int dumpFullGame(GameInfo *game_info) {
 		goto ERROR;
 
 	sceKernelDelayThread(DELAY);
+	printf("OK\n");
+
+	// Install app.db modification
+	printf("Installing app.db modification...");
+	res = installAppDbMod();
+	if (res < 0)
+		goto ERROR;
 	printf("OK\n");
 
 	// Open manual and launch game
@@ -525,6 +598,13 @@ int dumpUpdate(GameInfo *game_info) {
 		goto ERROR;
 
 	sceKernelDelayThread(DELAY);
+	printf("OK\n");
+
+	// Install app.db modification
+	printf("Installing app.db modification...");
+	res = installAppDbMod();
+	if (res < 0)
+		goto ERROR;
 	printf("OK\n");
 
 	// Open manual and launch game
