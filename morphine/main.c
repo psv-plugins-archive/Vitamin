@@ -58,18 +58,33 @@ int debugPrintf(char *text, ...) {
 	return 0;
 }
 
-void writeSteroid(char *path) {
+int writeSteroid(char *path) {
+	int res;
+
 	// Write steroid module
 	printf("Writing steroid.suprx...");
-	sprintf(path, "%s/sce_module", path);
-	sceIoMkdir(path, 0777);
-	sprintf(path, "%s/sce_module/steroid.suprx", path);
-	WriteFile(path, steroid, size_steroid);
+
+	char steroid_path[128];
+	sprintf(steroid_path, "%s/sce_module", path);
+	res = sceIoMkdir(steroid_path, 0777);
+	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
+		goto ERROR;
+
+	sprintf(steroid_path, "%s/sce_module/steroid.suprx", path);
+	res = WriteFile(steroid_path, steroid, size_steroid);
+	if (res < 0)
+		goto ERROR;
+
 	printf("OK\n");
+	return 0;
+	
+ERROR:
+	printf("Error 0x%08X\n", res);
+	return res;
 }
 
 int main(int argc, char *argv[]) {
-	char path[128], dst_path[128], app_path[128], savedata_path[128], tmp_path[128];
+	char path[128], dst_path[128], app_path[128], tmp_path[128];
 
 	// Get title id
 	memset(titleid, 0, sizeof(titleid));
@@ -133,7 +148,7 @@ int main(int argc, char *argv[]) {
 	} else {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s", titleid, game_info.version_game);
-		copyPath(app_path, dst_path);
+		//copyPath(app_path, dst_path);
 
 		// Write steroid module
 		writeSteroid(dst_path);
@@ -148,10 +163,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Restore original savedata
-	sprintf(tmp_path, "ux0:user/00/savedata/%s_org", titleid);
-	sprintf(savedata_path, "ux0:user/00/savedata/%s", titleid);
-	removePath(savedata_path);
-	sceIoRename(tmp_path, savedata_path);
+	removePath("ux0:user/00/savedata_old");
+	sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_old");
+	sceIoRename("ux0:user/00/savedata_org", "ux0:user/00/savedata");
 
 	// Write lsd module
 	sprintf(path, "ux0:patch/%s/sce_module/libc.suprx", titleid);

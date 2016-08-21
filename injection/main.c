@@ -444,7 +444,7 @@ void openManualLaunchGame(GameInfo *game_info) {
 
 int dumpFullGame(GameInfo *game_info) {
 	int res;
-	char patch_path[128], savedata_path[128], tmp_path[128];
+	char patch_path[128], tmp_path[128];
 
 	sceKernelDelayThread(DELAY);
 	printf("Injecting morphine...");
@@ -463,10 +463,8 @@ int dumpFullGame(GameInfo *game_info) {
 		goto ERROR;
 
 	// Backup savedata and let the application create a new savegame with its new encryption key
-	sprintf(savedata_path, "ux0:user/00/savedata/%s", game_info->titleid);
-	sprintf(tmp_path, "ux0:user/00/savedata/%s_org", game_info->titleid);
-	res = sceIoRename(savedata_path, tmp_path);
-	if (res < 0 && res != 0x80010002)
+	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
+	if (res < 0)// && res != 0x80010002)
 		goto ERROR;
 
 	// Inject morphine
@@ -491,7 +489,7 @@ ERROR:
 
 int dumpUpdate(GameInfo *game_info) {
 	int res;
-	char app_path[128], patch_path[128], savedata_path[128], tmp_path[128];
+	char app_path[128], patch_path[128], tmp_path[128];
 
 	sceKernelDelayThread(DELAY);
 	printf("Injecting morphine...");
@@ -516,10 +514,8 @@ int dumpUpdate(GameInfo *game_info) {
 		goto ERROR;
 
 	// Backup savedata and let the application create a new savegame with its new encryption key
-	sprintf(savedata_path, "ux0:user/00/savedata/%s", game_info->titleid);
-	sprintf(tmp_path, "ux0:user/00/savedata/%s_org", game_info->titleid);
-	res = sceIoRename(savedata_path, tmp_path);
-	if (res < 0 && res != 0x80010002)
+	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
+	if (res < 0)// && res != 0x80010002)
 		goto ERROR;
 
 	// Inject morphine

@@ -102,6 +102,7 @@ int hijackStub(SelfArguments *args, uint32_t placeholder_stub, char *libname, ui
 	*(uint32_t *)(args->text_buf + addr + 0xC) = 0xE12FFF14; // bx v1
 
 	// Let the stub be resolved in a placeholder stub
+	// Without this patch, the system will reboot and error
 	int i;
 	for (i = args->sce_module_info_offset; i < args->text_size; i += 4) {
 		if (*(uint32_t *)(args->text_buf + i) == function) {
@@ -162,9 +163,7 @@ int manipulateSelf(SelfArguments *args) {
 	SteroidParam *steroid_param = (SteroidParam *)(args->data_buf + args->steroid_param_addr);
 
 	// Copy plugin path
-	char path[128];
-	sprintf(path, "%s/sce_module/steroid.suprx", dump_path);
-	strcpy(steroid_param->path, path);
+	strcpy(steroid_param->path, "app0:sce_module/steroid.suprx");
 
 	// Use __sce_aeabi_idiv0 as placeholder stub
 	uint32_t placeholder_stub = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, "SceLibKernel", 0x4373B548);
@@ -174,7 +173,8 @@ int manipulateSelf(SelfArguments *args) {
 	hijackStub(args, placeholder_stub, "SceFios2", 0x774C2C05, 0);
 
 	// Hijack sceAppUtilAppParamGetInt
-	hijackStub(args, placeholder_stub, "SceAppUtil", 0xCD7FD67A, 1);
+	// TODO: find out why this crashes
+	//hijackStub(args, placeholder_stub, "SceAppUtil", 0xCD7FD67A, 1);
 
 	// TODO: field_38 in sce_module_info. what is it?
 

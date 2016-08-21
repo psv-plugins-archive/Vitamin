@@ -1,6 +1,6 @@
 all: clean _steroid _lsd _morphine _injection
 
-send: all
+send:
 	make -C injection send
 	make -C injection clean
 
