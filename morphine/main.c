@@ -61,7 +61,7 @@ int debugPrintf(char *text, ...) {
 }
 
 int ignoreHandler(char *path) {
-	if (strstr(path, "eboot.bin") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
+	if (strcmp(strrchr(path, '.'), ".self") == 0 || strstr(path, "eboot.bin") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
 		return 1;
 	}
 
@@ -72,6 +72,79 @@ void writeSteroid(char *dst_path) {
 	sceIoMkdir("ux0:pspemu/Vitamin/sce_module", 0777);
 	WriteFile("ux0:pspemu/Vitamin/sce_module/steroid.suprx", steroid, size_steroid);
 	makeZip(dst_path, "ux0:pspemu/Vitamin/sce_module/steroid.suprx", 19, 1, NULL);
+}
+
+void relaunchGame() {
+	// Write relaunch titleid
+	WriteFile("ux0:pspemu/Vitamin/relaunch.bin", titleid, strlen(titleid) + 1);
+
+	// Launch Vitamin app to relaunch game
+	// TODO: make stable. sometimes this fails...
+	sceKernelDelayThread(1 * 1000 * 1000);
+	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
+	sceKernelDelayThread(1000); // Maybe this will make it stable
+	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
+	sceKernelExitProcess(0);
+}
+
+int copyExecutables(char *src_path, char *dst_path) {
+	SceUID dfd = sceIoDopen(src_path);
+	if (dfd >= 0) {
+		int ret = sceIoMkdir(dst_path, 0777);
+		if (ret < 0 && ret != SCE_ERROR_ERRNO_EEXIST) {
+			sceIoDclose(dfd);
+			return ret;
+		}
+
+		int res = 0;
+
+		do {
+			SceIoDirent dir;
+			memset(&dir, 0, sizeof(SceIoDirent));
+
+			res = sceIoDread(dfd, &dir);
+			if (res > 0) {
+				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
+					continue;
+
+				char *ext = strrchr(dir.d_name, '.');
+				if (strcmp(ext, ".self") != 0 || strcmp(dir.d_name, "eboot.bin") != 0)
+					continue;
+
+				char *new_src_path = malloc(strlen(src_path) + strlen(dir.d_name) + 2);
+				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
+
+				char *new_dst_path = malloc(strlen(dst_path) + strlen(dir.d_name) + 2);
+				snprintf(new_dst_path, MAX_PATH_LENGTH, "%s/%s", dst_path, dir.d_name);
+
+				int ret = 0;
+
+				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
+					ret = copyExecutables(new_src_path, new_dst_path);
+				} else {
+					ret = copyFile(new_src_path, new_dst_path, dir.d_stat.st_size);
+				}
+
+				free(new_dst_path);
+				free(new_src_path);
+
+				if (ret < 0) {
+					sceIoDclose(dfd);
+					return ret;
+				}
+			}
+		} while (res > 0);
+
+		sceIoDclose(dfd);
+	} else {
+		SceIoStat stat;
+		memset(&stat, 0, sizeof(SceIoStat));
+		int ret = sceIoGetstat(src_path, &stat);
+		if (ret < 0)
+			return ret;
+
+		return copyFile(src_path, dst_path, stat.st_size);
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -121,9 +194,12 @@ int main(int argc, char *argv[]) {
 		// Write steroid module
 		writeSteroid(dst_path);
 
-		// Copy decrypted eboot.bin to temp location
-		sprintf(path, "%s/eboot.bin", app_path);
-		copyPath(path, "ux0:pspemu/Vitamin/eboot.bin");
+		// Copy executables to temporary directory
+		printf("Copying executable files for decryption...");
+		res = copyExecutables(app_path, "ux0:pspemu/Vitamin");
+		if (res < 0)
+			goto ERROR;
+		printf("OK\n");
 
 		// Destory all other apps (close manual to unlock files)
 		sceAppMgrDestroyOtherApp();
@@ -134,9 +210,6 @@ int main(int argc, char *argv[]) {
 
 		// Delete *this* eboot.bin
 		sceIoRemove(dst_path);
-
-		// Move decrypted eboot.bin to ux0:patch for next stage
-		sceIoRename("ux0:pspemu/Vitamin/eboot.bin", dst_path);
 
 		// Backup patch in app folder
 		sprintf(tmp_path, "ux0:app/%s_patch", titleid);
@@ -153,6 +226,13 @@ int main(int argc, char *argv[]) {
 
 		// Write steroid module
 		writeSteroid(dst_path);
+
+		// Copy executables to temporary directory
+		printf("Copying executable files for decryption...");
+		res = copyExecutables(app_path, "ux0:pspemu/Vitamin");
+		if (res < 0)
+			goto ERROR;
+		printf("OK\n");
 
 		// Destory all other apps (close manual to unlock files)
 		sceAppMgrDestroyOtherApp();
@@ -172,16 +252,7 @@ int main(int argc, char *argv[]) {
 	sprintf(path, "ux0:patch/%s/sce_module/libc.suprx", titleid);
 	WriteFile(path, lsd, size_lsd);
 
-	// Write relaunch titleid
-	WriteFile("ux0:pspemu/Vitamin/relaunch.bin", titleid, strlen(titleid) + 1);
-
-	// Launch Vitamin app to relaunch game
-	// TODO: make stable. sometimes this fails...
-	sceKernelDelayThread(1 * 1000 * 1000);
-	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
-	sceKernelDelayThread(1000); // Maybe this will make it stable
-	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
-	sceKernelExitProcess(0);
+	relaunchGame();
 
 	return 0;
 }

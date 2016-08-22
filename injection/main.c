@@ -296,16 +296,49 @@ int doMenu(char *info, char *title, int back_button, char **entries, int n_entri
 	return -1;
 }
 
+void addExecutables(char *zip_path, char *tmp_dir) {
+	char tmp_path[128];
+
+	SceUID dfd = sceIoDopen(tmp_dir);
+	if (dfd >= 0) {
+		int res = 0;
+
+		do {
+			SceIoDirent dir;
+			memset(&dir, 0, sizeof(SceIoDirent));
+
+			res = sceIoDread(dfd, &dir);
+			if (res > 0) {
+				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
+					continue;
+
+				char *new_src_path = malloc(strlen(tmp_dir) + strlen(dir.d_name) + 2);
+				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", tmp_dir, dir.d_name);
+
+				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
+					addExecutables(zip_path, new_src_path);
+				} else {
+					makeZip(zip_path, new_src_path, strlen("ux0:pspemu/Vitamin/"), 1, NULL);
+				}
+
+				free(new_src_path);
+			}
+		} while (res > 0);
+		sceIoDclose(dfd);
+	}
+}
+
 int finishDump(GameInfo *game_info, int mode) {
 	int res;
 	char path[128], patch_path[128], tmp_path[128];
 
 	// Add converted eboot.bin
 	sprintf(path, "ux0:Vitamin/%s%s%s.VPK", game_info->titleid, mode == MODE_UPDATE ? "_UPDATE_" : "_FULLGAME_", mode == MODE_UPDATE ? game_info->version_update : game_info->version_game);
-	makeZip(path, "ux0:pspemu/Vitamin/eboot.bin", 19, 1, NULL);
+	addExecutables(path, "ux0:pspemu/Vitamin");
 
 	// Remove Vitamin path in pspemu
 	removePath("ux0:pspemu/Vitamin");
+	removePath("ux0:pspemu/Vitamin_exec");
 
 	// Do we keep this here ? Might be useful for the user in case he wants to decrypt savedata...
 	// Uninstall app.db modification
@@ -375,6 +408,12 @@ int injectMorphine(GameInfo *game_info, int mode) {
 	res = sceIoMkdir("ux0:pspemu/Vitamin", 0777);
 	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
 		return res;
+
+	// Make pspemu/Vitamin_exec dir
+	res = sceIoMkdir("ux0:pspemu/Vitamin_exec", 0777);
+	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
+		return res;
+
 
 	// Make patch dir
 	sprintf(path, "ux0:patch/%s", game_info->titleid);
@@ -509,6 +548,61 @@ int uninstallAppDbMod() {
 	return sql_multiple_exec(APP_DB, queries);
 }
 
+int getNextSelf(char *self_path, char *src_path) {
+	SceUID dfd = sceIoDopen(src_path);
+	if (dfd >= 0) {
+		do {
+			SceIoDirent dir;
+			memset(&dir, 0, sizeof(SceIoDirent));
+
+			res = sceIoDread(dfd, &dir);
+			if (res > 0) {
+				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
+					continue;
+
+				char *new_src_path = malloc(strlen(src_path) + strlen(dir.d_name) + 2);
+				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
+
+				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
+					ret = getNextSelf(self_path, new_src_path);
+				} else {
+					self_path = new_src_path;
+					return 1;
+				}
+
+				free(new_src_path);
+			}
+		} while (res > 0);
+		sceIoDclose(dfd);
+	}
+	return 0;
+}
+
+int setupSelfDump(GameInfo *game_info, int mode) {
+	char self_path[128], *src_path = NULL;
+
+	char *query = malloc(0x100);
+	char *queries = { query, NULL };
+
+	// Get next executable path in ux0:pspemu/Vitamin
+	getNextSelf(src_path, "ux0:pspemu/Vitamin_exec");
+
+	if (mode == MODE_UPDATE) {
+		sprintf(self_path, "ux0:patch/%s/%s", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
+		// Copy executable to ux0:patch
+		copyPath(src_path, self_path);
+	} else { // mode == MODE_FULL_GAME
+		sprintf(self_path, "%s:app/%s/%s", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
+	}
+
+	// Delete executable from temp directory
+	sceIoRemove(src_path);
+
+	// Create and execute SQL query in app.db
+	sprintf(query, "UPDATE tbl_appinfo SET val='%s' WHERE key='3022202214' and titleid='%s'", self_path, game_info->titleid);
+	return sql_multiple_exec(APP_DB, queries);
+}
+
 int dumpFullGame(GameInfo *game_info) {
 	int res;
 	char patch_path[128], tmp_path[128];
@@ -628,11 +722,25 @@ int main(int argc, char *argv[]) {
 	// Init screen
 	psvDebugScreenInit();
 
+	// Read mode
+	sprintf(path, "ux0:patch/%s/mode.bin", titleid);
+
+	int mode = 0;
+	ReadFile(path, &mode, sizeof(int));
+
+	// Read game info
+	sprintf(path, "ux0:patch/%s/info.bin", titleid);
+
+	GameInfo game_info;
+	ReadFile(path, &game_info, sizeof(GameInfo));
+
 	// Relaunch game
 	char titleid[12];
 	memset(titleid, 0, sizeof(titleid));
 	if (ReadFile("ux0:pspemu/Vitamin/relaunch.bin", titleid, sizeof(titleid)) >= 0) {
 		sceIoRemove("ux0:pspemu/Vitamin/relaunch.bin");
+
+		setupSelfDump(game_info, mode);
 
 		char uri[32];
 		sprintf(uri, "psgm:play?titleid=%s", titleid);
@@ -650,18 +758,6 @@ int main(int argc, char *argv[]) {
 		psvDebugScreenSetBgColor(DARKBLUE);
 
 		char path[128];
-
-		// Read mode
-		sprintf(path, "ux0:patch/%s/mode.bin", titleid);
-
-		int mode = 0;
-		ReadFile(path, &mode, sizeof(int));
-
-		// Read game info
-		sprintf(path, "ux0:patch/%s/info.bin", titleid);
-
-		GameInfo game_info;
-		ReadFile(path, &game_info, sizeof(GameInfo));
 
 		// Layout
 		char *version = mode == MODE_UPDATE ? game_info.version_update : game_info.version_game;
