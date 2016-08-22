@@ -61,7 +61,9 @@ int debugPrintf(char *text, ...) {
 }
 
 int ignoreHandler(char *path) {
-	if (strcmp(strrchr(path, '.'), ".self") == 0 || strstr(path, "eboot.bin") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
+	if (strcmp(strrchr(path, '.'), ".self") == 0 )
+		return 1;
+	if (strstr(path, "eboot.bin") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
 		return 1;
 	}
 
@@ -136,15 +138,8 @@ int copyExecutables(char *src_path, char *dst_path) {
 		} while (res > 0);
 
 		sceIoDclose(dfd);
-	} else {
-		SceIoStat stat;
-		memset(&stat, 0, sizeof(SceIoStat));
-		int ret = sceIoGetstat(src_path, &stat);
-		if (ret < 0)
-			return ret;
-
-		return copyFile(src_path, dst_path, stat.st_size);
 	}
+	return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -196,9 +191,7 @@ int main(int argc, char *argv[]) {
 
 		// Copy executables to temporary directory
 		printf("Copying executable files for decryption...");
-		res = copyExecutables(app_path, "ux0:pspemu/Vitamin");
-		if (res < 0)
-			goto ERROR;
+		copyExecutables(app_path, "ux0:pspemu/Vitamin_exec");
 		printf("OK\n");
 
 		// Destory all other apps (close manual to unlock files)
@@ -229,9 +222,7 @@ int main(int argc, char *argv[]) {
 
 		// Copy executables to temporary directory
 		printf("Copying executable files for decryption...");
-		res = copyExecutables(app_path, "ux0:pspemu/Vitamin");
-		if (res < 0)
-			goto ERROR;
+		copyExecutables(app_path, "ux0:pspemu/Vitamin_exec");
 		printf("OK\n");
 
 		// Destory all other apps (close manual to unlock files)

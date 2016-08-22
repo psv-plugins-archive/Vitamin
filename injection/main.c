@@ -297,8 +297,6 @@ int doMenu(char *info, char *title, int back_button, char **entries, int n_entri
 }
 
 void addExecutables(char *zip_path, char *tmp_dir) {
-	char tmp_path[128];
-
 	SceUID dfd = sceIoDopen(tmp_dir);
 	if (dfd >= 0) {
 		int res = 0;
@@ -551,11 +549,12 @@ int uninstallAppDbMod() {
 int getNextSelf(char *self_path, char *src_path) {
 	SceUID dfd = sceIoDopen(src_path);
 	if (dfd >= 0) {
+		int res = 0;
 		do {
 			SceIoDirent dir;
 			memset(&dir, 0, sizeof(SceIoDirent));
 
-			res = sceIoDread(dfd, &dir);
+			int res = sceIoDread(dfd, &dir);
 			if (res > 0) {
 				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
 					continue;
@@ -564,7 +563,7 @@ int getNextSelf(char *self_path, char *src_path) {
 				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
 
 				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
-					ret = getNextSelf(self_path, new_src_path);
+					getNextSelf(self_path, new_src_path);
 				} else {
 					self_path = new_src_path;
 					return 1;
@@ -582,7 +581,7 @@ int setupSelfDump(GameInfo *game_info, int mode) {
 	char self_path[128], *src_path = NULL;
 
 	char *query = malloc(0x100);
-	char *queries = { query, NULL };
+	char *queries[] = { query, NULL };
 
 	// Get next executable path in ux0:pspemu/Vitamin
 	getNextSelf(src_path, "ux0:pspemu/Vitamin_exec");
@@ -719,20 +718,10 @@ int main(int argc, char *argv[]) {
 	char n_games_string[32];
 	char game_info_string[512];
 
+	char path[128];
+
 	// Init screen
 	psvDebugScreenInit();
-
-	// Read mode
-	sprintf(path, "ux0:patch/%s/mode.bin", titleid);
-
-	int mode = 0;
-	ReadFile(path, &mode, sizeof(int));
-
-	// Read game info
-	sprintf(path, "ux0:patch/%s/info.bin", titleid);
-
-	GameInfo game_info;
-	ReadFile(path, &game_info, sizeof(GameInfo));
 
 	// Relaunch game
 	char titleid[12];
@@ -740,7 +729,19 @@ int main(int argc, char *argv[]) {
 	if (ReadFile("ux0:pspemu/Vitamin/relaunch.bin", titleid, sizeof(titleid)) >= 0) {
 		sceIoRemove("ux0:pspemu/Vitamin/relaunch.bin");
 
-		setupSelfDump(game_info, mode);
+		// Read mode
+		sprintf(path, "ux0:patch/%s/mode.bin", titleid);
+
+		int mode = 0;
+		ReadFile(path, &mode, sizeof(int));
+
+		// Read game info
+		sprintf(path, "ux0:patch/%s/info.bin", titleid);
+
+		GameInfo game_info;
+		ReadFile(path, &game_info, sizeof(GameInfo));
+
+		setupSelfDump(&game_info, mode);
 
 		char uri[32];
 		sprintf(uri, "psgm:play?titleid=%s", titleid);
@@ -756,8 +757,18 @@ int main(int argc, char *argv[]) {
 
 		psvDebugScreenClear(DARKBLUE);
 		psvDebugScreenSetBgColor(DARKBLUE);
+		
+		// Read mode
+		sprintf(path, "ux0:patch/%s/mode.bin", titleid);
 
-		char path[128];
+		int mode = 0;
+		ReadFile(path, &mode, sizeof(int));
+
+		// Read game info
+		sprintf(path, "ux0:patch/%s/info.bin", titleid);
+
+		GameInfo game_info;
+		ReadFile(path, &game_info, sizeof(GameInfo));
 
 		// Layout
 		char *version = mode == MODE_UPDATE ? game_info.version_update : game_info.version_game;

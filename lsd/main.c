@@ -529,6 +529,7 @@ int dumpExecutable() {
 int getNextSelf(char *self_path, char *src_path) {
 	SceUID dfd = sceIoDopen(src_path);
 	if (dfd >= 0) {
+		int res = 0;
 		do {
 			SceIoDirent dir;
 			memset(&dir, 0, sizeof(SceIoDirent));
@@ -542,7 +543,7 @@ int getNextSelf(char *self_path, char *src_path) {
 				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
 
 				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
-					ret = getNextSelf(self_path, new_src_path);
+					getNextSelf(self_path, new_src_path);
 				} else {
 					self_path = new_src_path;
 					return 1;

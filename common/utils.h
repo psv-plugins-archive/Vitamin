@@ -78,6 +78,7 @@ typedef struct {
 
 int ReadFile(char *file, void *buf, int size);
 int WriteFile(char *file, void *buf, int size);
+int copyFile(char *src_path, char *dst_path, uint64_t size);
 
 int copyPath(char *src_path, char *dst_path);
 int removePath(char *path);
