@@ -298,7 +298,7 @@ void restoreSavedata() {
 	removePath("ux0:user/00/savedata_old");
 	if (sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_old") >= 0) {
 		if (sceIoRename("ux0:user/00/savedata_org", "ux0:user/00/savedata") < 0) {
-			sceIoRename("ux0:user/00/savedata_old", "ux0:user/00/savedata")
+			sceIoRename("ux0:user/00/savedata_old", "ux0:user/00/savedata");
 		}
 	}
 }
