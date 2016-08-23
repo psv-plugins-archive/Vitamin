@@ -8,7 +8,6 @@ clean:
 	-rm "morphine/steroid.h"
 	-rm "morphine/lsd.h"
 	-rm "injection/eboot_bin.h"
-	-rm "injection/param_sfo.h"
 	make -C injection clean
 	make -C morphine clean
 	make -C lsd clean
@@ -30,7 +29,6 @@ _morphine:
 	make -C morphine clean
 	make -C morphine
 	bin2c morphine/eboot.bin injection/eboot_bin.h eboot_bin
-	bin2c morphine/param.sfo injection/param_sfo.h param_sfo
 	make -C morphine clean
 
 _injection:
