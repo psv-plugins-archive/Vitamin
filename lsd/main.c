@@ -616,8 +616,9 @@ int main(int argc, char *argv[]) {
 	char self_path[MAX_PATH_LENGTH], tmp_path[128];
 	sprintf(tmp_path, "%s/Vitamin_exec", pspemu_path);
 
+	memset(self_path, 0, MAX_PATH_LENGTH);
 	int next_self = getNextSelf(self_path, tmp_path);
-	debugPrintf("self_path: %s\n", self_path);
+	debugPrintf("self_path: func returned %d, path: %s\n", next_self, self_path);
 
 	// Write relaunch/finish titleid
 	char path[128];

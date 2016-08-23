@@ -37,6 +37,8 @@
 #include "../common/graphics.h"
 #include "../common/common.h"
 
+#include "../libpromoter/promoterutil.h"
+
 #include "../minizip/makezip.h"
 
 #include "eboot_bin.h"
@@ -582,6 +584,18 @@ int getNextSelf(char *self_path, char *src_path) {
 	return ret;
 }
 
+void flushShell(GameInfo *game_info) {
+	ScePromoterUtilityLAUpdate LAUpdate_args;
+
+	scePromoterUtilityInit();
+
+	sprintf(LAUpdate_args.titleid, "%s", game_info->titleid);
+	sprintf(LAUpdate_args.path, "%s:app/%s/sce_sys/livearea", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid);
+
+	scePromoterUtilityUpdateLiveArea(&LAUpdate_args);
+	scePromoterUtilityExit();
+}
+
 int setupSelfDump(GameInfo *game_info, int mode) {
 	char self_path[128], src_path[MAX_PATH_LENGTH];
 
@@ -803,6 +817,7 @@ int main(int argc, char *argv[]) {
 		ReadFile(path, &game_info, sizeof(GameInfo));
 
 		setupSelfDump(&game_info, mode);
+		flushShell(&game_info);
 
 		char uri[32];
 		sprintf(uri, "psgm:play?titleid=%s", titleid);
