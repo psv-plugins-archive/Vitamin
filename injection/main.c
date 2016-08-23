@@ -554,7 +554,7 @@ int getNextSelf(char *self_path, char *src_path) {
 			SceIoDirent dir;
 			memset(&dir, 0, sizeof(SceIoDirent));
 
-			int res = sceIoDread(dfd, &dir);
+			res = sceIoDread(dfd, &dir);
 			if (res > 0) {
 				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
 					continue;
@@ -565,7 +565,7 @@ int getNextSelf(char *self_path, char *src_path) {
 				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
 					getNextSelf(self_path, new_src_path);
 				} else {
-					self_path = new_src_path;
+					sprintf(self_path, "%s", new_src_path);
 					return 1;
 				}
 
@@ -578,7 +578,7 @@ int getNextSelf(char *self_path, char *src_path) {
 }
 
 int setupSelfDump(GameInfo *game_info, int mode) {
-	char self_path[128], *src_path = NULL;
+	char self_path[128], src_path[128];
 
 	char *query = malloc(0x100);
 	char *queries[] = { query, NULL };
@@ -757,7 +757,7 @@ int main(int argc, char *argv[]) {
 
 		psvDebugScreenClear(DARKBLUE);
 		psvDebugScreenSetBgColor(DARKBLUE);
-		
+
 		// Read mode
 		sprintf(path, "ux0:patch/%s/mode.bin", titleid);
 

@@ -61,7 +61,8 @@ int debugPrintf(char *text, ...) {
 }
 
 int ignoreHandler(char *path) {
-	if (strcmp(strrchr(path, '.'), ".self") == 0 )
+	char *ext  = strrchr(path, '.');
+	if (ext != NULL && strcmp(ext, ".self") == 0 )
 		return 1;
 	if (strstr(path, "eboot.bin") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
 		return 1;
@@ -110,8 +111,11 @@ int copyExecutables(char *src_path, char *dst_path) {
 					continue;
 
 				char *ext = strrchr(dir.d_name, '.');
-				if (strcmp(ext, ".self") != 0 || strcmp(dir.d_name, "eboot.bin") != 0)
+				if (ext == NULL && !SCE_S_ISDIR(dir.d_stat.st_mode))
 					continue;
+				if (ext != NULL && strcmp(ext, ".self") != 0 && strcmp(dir.d_name, "eboot.bin") != 0)
+					if (!SCE_S_ISDIR(dir.d_stat.st_mode))
+						continue;
 
 				char *new_src_path = malloc(strlen(src_path) + strlen(dir.d_name) + 2);
 				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
