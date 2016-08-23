@@ -598,7 +598,7 @@ int main(int argc, char *argv[]) {
 	dumpExecutable();
 
 	// Check if there is any executable left to decrypt
-	char *self_path = NULL, tmp_path[128];
+	char self_path[128], tmp_path[128];
 	sprintf(tmp_path, "%s/Vitamin_exec", pspemu_path);
 	if (getNextSelf(self_path, tmp_path) > 0)
 		goto reload;

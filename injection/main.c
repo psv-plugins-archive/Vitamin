@@ -395,6 +395,11 @@ int injectMorphine(GameInfo *game_info, int mode) {
 	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
 		return res;
 
+	// Make patch dir
+	res = sceIoMkdir("ux0:patch", 0777);
+	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
+		return res;
+
 	// Make pspemu dir
 	res = sceIoMkdir("ux0:pspemu", 0777);
 	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
@@ -624,12 +629,12 @@ int dumpFullGame(GameInfo *game_info) {
 	// Backup original patch
 	res = sceIoRename(patch_path, tmp_path);
 	if (res < 0 && res != 0x80010002)
-		goto ERROR;
+		goto RESTORE;
 
 	// Inject morphine
 	res = injectMorphine(game_info, MODE_FULL_GAME);
 	if (res < 0)
-		goto ERROR;
+		goto RESTORE;
 
 	sceKernelDelayThread(DELAY);
 	printf("OK\n");
@@ -638,18 +643,42 @@ int dumpFullGame(GameInfo *game_info) {
 	printf("Installing app.db modification...");
 	res = installAppDbMod();
 	if (res < 0)
-		goto ERROR;
+		goto RESTORE;
 	printf("OK\n");
 
 	// Open manual and launch game
 	openManualLaunchGame(game_info);
 
 	return 0;
+RESTORE:
+	// Patch path and temp path
+	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
+	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
+
+	// Restore original patch
+	SceUID dfd = sceIoDopen(tmp_path);
+	if (dfd >= 0) {
+		sceIoDclose(dfd);
+		removePath(patch_path);
+		sceIoRename(tmp_path, patch_path);
+	}
+
+	// Eject morphine
+	sprintf(tmp_path, "%s/mode.bin", patch_path);
+	SceUID fd = sceIoOpen(tmp_path, SCE_O_RDONLY, 0);
+	if (fd > 0) {
+		removePath(patch_path);
+	}
+
+	// Restore original savedata
+	removePath("ux0:user/00/savedata_old");
+	sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_old");
+	sceIoRename("ux0:user/00/savedata_org", "ux0:user/00/savedata");
 
 ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
-	sceKernelDelayThread(10 * 1000 * 1000);
+	sceKernelDelayThread(5 * 1000 * 1000);
 
 	return res;
 }
