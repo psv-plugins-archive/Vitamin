@@ -46,7 +46,6 @@
 
 #define DELAY 700 * 1000
 
-// TODO: disable autosuspend
 // TODO: add check if manual is open
 // TODO: check ms space
 // TODO: progressbar
@@ -760,11 +759,30 @@ ERROR:
 	return res;
 }
 
+int power_tick_thread(SceSize args, void *argp) {
+	while (1) {
+		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
+		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_OLED_OFF);
+		sceKernelDelayThread(10 * 1000 * 1000);
+	}
+
+	return 0;
+}
+
+void initPowerTickThread() {
+	SceUID thid = sceKernelCreateThread("power_tick_thread", power_tick_thread, 0x10000100, 0x40000, 0, 0, NULL);
+	if (thid >= 0)
+		sceKernelStartThread(thid, 0, NULL);
+}
+
 int main(int argc, char *argv[]) {
 	char n_games_string[32];
 	char game_info_string[512];
 
 	char path[128];
+
+	// Init power tick thread
+	initPowerTickThread();
 
 	// Init screen
 	psvDebugScreenInit();

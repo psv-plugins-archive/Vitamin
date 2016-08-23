@@ -155,8 +155,27 @@ int copyExecutables(char *src_path, char *dst_path) {
 	return 0;
 }
 
+int power_tick_thread(SceSize args, void *argp) {
+	while (1) {
+		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
+		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_OLED_OFF);
+		sceKernelDelayThread(10 * 1000 * 1000);
+	}
+
+	return 0;
+}
+
+void initPowerTickThread() {
+	SceUID thid = sceKernelCreateThread("power_tick_thread", power_tick_thread, 0x10000100, 0x40000, 0, 0, NULL);
+	if (thid >= 0)
+		sceKernelStartThread(thid, 0, NULL);
+}
+
 int main(int argc, char *argv[]) {
 	char path[128], dst_path[128], app_path[128], tmp_path[128];
+
+	// Init power tick thread
+	initPowerTickThread();
 
 	// Get title id
 	memset(titleid, 0, sizeof(titleid));
