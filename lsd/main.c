@@ -545,7 +545,8 @@ int getNextSelf(char *self_path, char *src_path) {
 				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
 					getNextSelf(self_path, new_src_path);
 				} else {
-					self_path = new_src_path;
+					sprintf(self_path, "%s", new_src_path);
+					free(new_src_path);
 					return 1;
 				}
 

@@ -49,8 +49,6 @@
 // TODO: disable autosuspend
 // TODO: add check if manual is open
 // TODO: check ms space
-// TODO: param.sfo fix
-// TODO: additional selfs support
 // TODO: progressbar
 // TODO: more error handling
 
@@ -566,6 +564,7 @@ int getNextSelf(char *self_path, char *src_path) {
 					getNextSelf(self_path, new_src_path);
 				} else {
 					sprintf(self_path, "%s", new_src_path);
+					free(new_src_path);
 					return 1;
 				}
 
