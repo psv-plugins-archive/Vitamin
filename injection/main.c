@@ -329,7 +329,9 @@ int finishDump(GameInfo *game_info, int mode) {
 	char path[128], patch_path[128], tmp_path[128];
 
 	// Add converted eboot.bin
-	sprintf(path, "ux0:Vitamin/%s%s%s.VPK", game_info->titleid, mode == MODE_UPDATE ? "_UPDATE_" : "_FULLGAME_", mode == MODE_UPDATE ? game_info->version_update : game_info->version_game);
+	sprintf(path, "ux0:Vitamin/%s%s%s%s", game_info->titleid, mode == MODE_UPDATE ? "_UPDATE_" : "_FULLGAME_",
+	                                    mode == MODE_UPDATE ? game_info->version_update : game_info->version_game,
+										mode == MODE_UPDATE ? ".ZIP" : ".VPK");
 	addExecutables(path, "ux0:pspemu/Vitamin");
 
 	// Remove Vitamin path in pspemu
@@ -373,15 +375,20 @@ int finishDump(GameInfo *game_info, int mode) {
 	printf("OK\n");
 
 	sceKernelDelayThread(DELAY);
-	printf("\nThe game has been dumped successfully.\nPress X to exit to main menu.");
+	printf("\nThe game has been dumped successfully.\nPress X to exit.");
 	waitForUser();
+	sceKernelExitProcess(0);
 
 	return 0;
 
 ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
-	sceKernelDelayThread(10 * 1000 * 1000);
+
+	sceKernelDelayThread(DELAY);
+	printf("\nPress X to exit.");
+	waitForUser();
+	sceKernelExitProcess(0);
 
 	return res;
 }
@@ -474,12 +481,7 @@ void openManualLaunchGame(GameInfo *game_info) {
 	waitForUser();
 
 	char uri[32];
-
-	if (game_info->is_cartridge) {
-		sprintf(uri, "gro0:app/%s", game_info->titleid);
-	} else {
-		sprintf(uri, "ux0:app/%s", game_info->titleid);
-	}
+	sprintf(uri, "%s:app/%s", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid);
 
 	// Open the manual
 	sceKernelDelayThread(1 * 1000 * 1000);
@@ -619,7 +621,7 @@ int dumpFullGame(GameInfo *game_info) {
 
 	// Backup savedata and let the application create a new savegame with its new encryption key
 	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
-	if (res < 0)// && res != 0x80010002)
+	if (res < 0 && res != 0x80010002)
 		goto ERROR;
 
 	// Patch path and temp path
@@ -650,6 +652,7 @@ int dumpFullGame(GameInfo *game_info) {
 	openManualLaunchGame(game_info);
 
 	return 0;
+
 RESTORE:
 	// Patch path and temp path
 	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
@@ -678,7 +681,11 @@ RESTORE:
 ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
-	sceKernelDelayThread(5 * 1000 * 1000);
+
+	sceKernelDelayThread(DELAY);
+	printf("\nPress X to exit.");
+	waitForUser();
+	sceKernelExitProcess(0);
 
 	return res;
 }
@@ -696,7 +703,7 @@ int dumpUpdate(GameInfo *game_info) {
 
 	// Backup savedata and let the application create a new savegame with its new encryption key
 	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
-	if (res < 0)// && res != 0x80010002)
+	if (res < 0 && res != 0x80010002)
 		goto ERROR;
 
 	// App path and temp path
@@ -737,7 +744,11 @@ int dumpUpdate(GameInfo *game_info) {
 ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
-	sceKernelDelayThread(10 * 1000 * 1000);
+
+	sceKernelDelayThread(DELAY);
+	printf("\nPress X to exit.");
+	waitForUser();
+	sceKernelExitProcess(0);
 
 	return res;
 }

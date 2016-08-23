@@ -83,6 +83,7 @@ static int     ZCALLBACK ferror_file_func OF((voidpf opaque, voidpf stream));
 typedef struct 
 {
 	SceUID fd;
+	int error;
     int filenameLength;
     void *filename;
 } FILE_IOPOSIX;
@@ -94,6 +95,7 @@ static voidpf file_build_ioposix(SceUID fd, const char *filename)
         return NULL;
     ioposix = (FILE_IOPOSIX*)malloc(sizeof(FILE_IOPOSIX));
     ioposix->fd = fd;
+	ioposix->error = 0;
     ioposix->filenameLength = strlen(filename) + 1;
     ioposix->filename = (char*)malloc(ioposix->filenameLength * sizeof(char));
     strncpy(ioposix->filename, filename, ioposix->filenameLength);
@@ -154,7 +156,8 @@ static uLong ZCALLBACK fread_file_func (voidpf opaque, voidpf stream, void* buf,
     if (stream == NULL)
         return -1;
     ioposix = (FILE_IOPOSIX*)stream;
-    ret = sceIoRead(ioposix->fd, buf, (size_t)size);
+    ret = (uLong)sceIoRead(ioposix->fd, buf, (size_t)size);
+	ioposix->error = (int)ret;
     return ret;
 }
 
@@ -165,7 +168,8 @@ static uLong ZCALLBACK fwrite_file_func (voidpf opaque, voidpf stream, const voi
     if (stream == NULL)
         return -1;
     ioposix = (FILE_IOPOSIX*)stream;
-    ret = sceIoWrite(ioposix->fd, buf, (size_t)size);
+    ret = (uLong)sceIoWrite(ioposix->fd, buf, (size_t)size);
+	ioposix->error = (int)ret;
     return ret;
 }
 
@@ -176,7 +180,8 @@ static long ZCALLBACK ftell_file_func (voidpf opaque, voidpf stream)
     if (stream == NULL)
         return ret;
     ioposix = (FILE_IOPOSIX*)stream;
-    ret = sceIoLseek32(ioposix->fd,0,SCE_SEEK_CUR);
+    ret = (long)sceIoLseek32(ioposix->fd, 0, SCE_SEEK_CUR);
+	ioposix->error = (int)ret;
     return ret;
 }
 
@@ -187,7 +192,8 @@ static ZPOS64_T ZCALLBACK ftell64_file_func (voidpf opaque, voidpf stream)
     if (stream == NULL)
         return ret;
     ioposix = (FILE_IOPOSIX*)stream;
-    ret = sceIoLseek(ioposix->fd,0,SCE_SEEK_CUR);
+    ret = (ZPOS64_T)sceIoLseek(ioposix->fd, 0, SCE_SEEK_CUR);
+	ioposix->error = (int)ret;
     return ret;
 }
 
@@ -215,7 +221,7 @@ static long ZCALLBACK fseek_file_func (voidpf opaque, voidpf stream, uLong offse
         default:
             return -1;
     }
-    if (sceIoLseek32(ioposix->fd,offset,fseek_origin) < 0)
+    if (sceIoLseek32(ioposix->fd, offset, fseek_origin) < 0)
         ret = -1;
     return ret;
 }
@@ -244,7 +250,7 @@ static long ZCALLBACK fseek64_file_func (voidpf opaque, voidpf stream, ZPOS64_T 
         default:
             return -1;
     }
-    if (sceIoLseek(ioposix->fd,offset,fseek_origin) < 0)
+    if (sceIoLseek(ioposix->fd, offset, fseek_origin) < 0)
         ret = -1;
     return ret;
 }
@@ -259,19 +265,21 @@ static int ZCALLBACK fclose_file_func (voidpf opaque, voidpf stream)
     if (ioposix->filename != NULL)
         free(ioposix->filename);
     ret = sceIoClose(ioposix->fd);
+	ioposix->error = ret;
     free(ioposix);
     return ret;
 }
 
 static int ZCALLBACK ferror_file_func (voidpf opaque, voidpf stream)
 {
-    //FILE_IOPOSIX *ioposix = NULL;
+    FILE_IOPOSIX *ioposix = NULL;
     int ret = -1;
     if (stream == NULL)
         return ret;
-    //ioposix = (FILE_IOPOSIX*)stream;
-    //ret = ferror(ioposix->file);
+    ioposix = (FILE_IOPOSIX*)stream;
 	ret = 0;
+	if (ioposix->error < 0)
+		ret = ioposix->error & 0xFF;
     return ret;
 }
 

@@ -178,15 +178,11 @@ int main(int argc, char *argv[]) {
 	printLayout(game_info_string, mode == MODE_UPDATE ? "Dumping update files" : "Dumping full game");
 
 	// Dump process
-	if (game_info.is_cartridge) {
-		sprintf(app_path, "gro0:app/%s", titleid);
-	} else {
-		sprintf(app_path, "ux0:app/%s", titleid);
-	}
+	sprintf(app_path, "%s:app/%s", game_info.is_cartridge ? "gro0" : "ux0", titleid);
 
 	if (mode == MODE_UPDATE) {
 		// Dump decrypted files
-		sprintf(dst_path, "ux0:Vitamin/%s_UPDATE_%s.VPK", titleid, game_info.version_update);
+		sprintf(dst_path, "ux0:Vitamin/%s_UPDATE_%s.ZIP", titleid, game_info.version_update);
 		sceIoRemove(dst_path);
 		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
 
