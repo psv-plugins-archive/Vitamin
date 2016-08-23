@@ -77,6 +77,15 @@ void writeSteroid(char *dst_path) {
 	makeZip(dst_path, "ux0:pspemu/Vitamin/sce_module/steroid.suprx", 19, 1, NULL);
 }
 
+void restoreSavedata() {
+	removePath("ux0:user/00/savedata_old");
+	if (sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_old") >= 0) {
+		if (sceIoRename("ux0:user/00/savedata_org", "ux0:user/00/savedata") < 0) {
+			sceIoRename("ux0:user/00/savedata_old", "ux0:user/00/savedata")
+		}
+	}
+}
+
 void relaunchGame() {
 	// Write relaunch titleid
 	WriteFile("ux0:pspemu/Vitamin/relaunch.bin", titleid, strlen(titleid) + 1);
@@ -235,9 +244,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Restore original savedata
-	removePath("ux0:user/00/savedata_old");
-	sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_old");
-	sceIoRename("ux0:user/00/savedata_org", "ux0:user/00/savedata");
+	restoreSavedata();
 
 	// Write lsd module
 	sprintf(path, "ux0:patch/%s/sce_module/libc.suprx", titleid);

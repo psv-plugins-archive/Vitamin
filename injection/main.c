@@ -294,6 +294,15 @@ int doMenu(char *info, char *title, int back_button, char **entries, int n_entri
 	return -1;
 }
 
+void restoreSavedata() {
+	removePath("ux0:user/00/savedata_old");
+	if (sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_old") >= 0) {
+		if (sceIoRename("ux0:user/00/savedata_org", "ux0:user/00/savedata") < 0) {
+			sceIoRename("ux0:user/00/savedata_old", "ux0:user/00/savedata")
+		}
+	}
+}
+
 void addExecutables(char *zip_path, char *tmp_dir) {
 	SceUID dfd = sceIoDopen(tmp_dir);
 	if (dfd >= 0) {
@@ -674,9 +683,7 @@ RESTORE:
 	}
 
 	// Restore original savedata
-	removePath("ux0:user/00/savedata_old");
-	sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_old");
-	sceIoRename("ux0:user/00/savedata_org", "ux0:user/00/savedata");
+	restoreSavedata();
 
 ERROR:
 	sceKernelDelayThread(DELAY);
@@ -761,6 +768,9 @@ int main(int argc, char *argv[]) {
 
 	// Init screen
 	psvDebugScreenInit();
+
+	// Restore original savedata in case it crashed before savedata could be restored
+	restoreSavedata();
 
 	// Relaunch game
 	char titleid[12];

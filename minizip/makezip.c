@@ -34,7 +34,7 @@
 
 #include "zip.h"
 
-#define WRITEBUFFERSIZE (64 * 1024)
+#define WRITEBUFFERSIZE (16 * 1024)
 #define MAXFILENAME	 (256)
 
 #define MAX_PATH_LENGTH 1024
