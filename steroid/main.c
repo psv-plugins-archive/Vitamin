@@ -371,7 +371,7 @@ void loadPlugins(char *path) {
 		} while (res > 0);
 
 		sceIoClose(fd);
-	}	
+	}
 }
 
 int _start(SceSize args, void *argp) {

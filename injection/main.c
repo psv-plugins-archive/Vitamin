@@ -316,18 +316,13 @@ void addExecutables(char *zip_path, char *tmp_dir) {
 				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
 					continue;
 
-				char *new_src_path = malloc(strlen(tmp_dir) + strlen(dir.d_name) + 2);
+				char new_src_path[MAX_PATH_LENGTH];
 				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", tmp_dir, dir.d_name);
 
-				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
-					addExecutables(zip_path, new_src_path);
-				} else {
-					makeZip(zip_path, new_src_path, strlen("ux0:pspemu/Vitamin/"), 1, NULL);
-				}
-
-				free(new_src_path);
+				makeZip(zip_path, new_src_path, strlen("ux0:pspemu/Vitamin/"), 1, NULL);
 			}
 		} while (res > 0);
+
 		sceIoDclose(dfd);
 	}
 }
@@ -376,7 +371,7 @@ int finishDump(GameInfo *game_info, int mode) {
 
 	// Rename
 	res = sceIoRename(tmp_path, patch_path);
-	if (res < 0)
+	if (res < 0 && res != 0x80010002)
 		goto ERROR;
 
 	sceKernelDelayThread(DELAY);
@@ -560,9 +555,12 @@ int uninstallAppDbMod() {
 }
 
 int getNextSelf(char *self_path, char *src_path) {
+	int ret = 0;
+
 	SceUID dfd = sceIoDopen(src_path);
 	if (dfd >= 0) {
 		int res = 0;
+
 		do {
 			SceIoDirent dir;
 			memset(&dir, 0, sizeof(SceIoDirent));
@@ -572,33 +570,27 @@ int getNextSelf(char *self_path, char *src_path) {
 				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
 					continue;
 
-				char *new_src_path = malloc(strlen(src_path) + strlen(dir.d_name) + 2);
-				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
-
-				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
-					getNextSelf(self_path, new_src_path);
-				} else {
-					sprintf(self_path, "%s", new_src_path);
-					free(new_src_path);
-					return 1;
-				}
-
-				free(new_src_path);
+				snprintf(self_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
+				ret = 1;
+				break;
 			}
 		} while (res > 0);
+
 		sceIoDclose(dfd);
 	}
-	return 0;
+
+	return ret;
 }
 
 int setupSelfDump(GameInfo *game_info, int mode) {
-	char self_path[128], src_path[128];
+	char self_path[128], src_path[MAX_PATH_LENGTH];
 
 	char *query = malloc(0x100);
 	char *queries[] = { query, NULL };
 
 	// Get next executable path in ux0:pspemu/Vitamin
 	getNextSelf(src_path, "ux0:pspemu/Vitamin_exec");
+	debugPrintf("Get next self: %s\n", src_path);
 
 	if (mode == MODE_UPDATE) {
 		sprintf(self_path, "ux0:patch/%s/%s", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
@@ -607,6 +599,8 @@ int setupSelfDump(GameInfo *game_info, int mode) {
 	} else { // mode == MODE_FULL_GAME
 		sprintf(self_path, "%s:app/%s/%s", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
 	}
+
+	debugPrintf("self_path: %s\n", self_path);
 
 	// Delete executable from temp directory
 	sceIoRemove(src_path);

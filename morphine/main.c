@@ -102,12 +102,6 @@ void relaunchGame() {
 int copyExecutables(char *src_path, char *dst_path) {
 	SceUID dfd = sceIoDopen(src_path);
 	if (dfd >= 0) {
-		int ret = sceIoMkdir(dst_path, 0777);
-		if (ret < 0 && ret != SCE_ERROR_ERRNO_EEXIST) {
-			sceIoDclose(dfd);
-			return ret;
-		}
-
 		int res = 0;
 
 		do {
@@ -116,15 +110,19 @@ int copyExecutables(char *src_path, char *dst_path) {
 
 			res = sceIoDread(dfd, &dir);
 			if (res > 0) {
+				if (SCE_S_ISDIR(dir.d_stat.st_mode))
+					continue;
+
 				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
 					continue;
 
 				char *ext = strrchr(dir.d_name, '.');
-				if (ext == NULL && !SCE_S_ISDIR(dir.d_stat.st_mode))
+				if (!ext)
 					continue;
-				if (ext != NULL && strcmp(ext, ".self") != 0 && strcmp(dir.d_name, "eboot.bin") != 0)
-					if (!SCE_S_ISDIR(dir.d_stat.st_mode))
-						continue;
+
+				if (strcmp(ext, ".self") != 0 && strcmp(dir.d_name, "eboot.bin") != 0) {
+					continue;
+				}
 
 				char *new_src_path = malloc(strlen(src_path) + strlen(dir.d_name) + 2);
 				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
@@ -132,13 +130,8 @@ int copyExecutables(char *src_path, char *dst_path) {
 				char *new_dst_path = malloc(strlen(dst_path) + strlen(dir.d_name) + 2);
 				snprintf(new_dst_path, MAX_PATH_LENGTH, "%s/%s", dst_path, dir.d_name);
 
-				int ret = 0;
-
-				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
-					ret = copyExecutables(new_src_path, new_dst_path);
-				} else {
-					ret = copyFile(new_src_path, new_dst_path, dir.d_stat.st_size);
-				}
+				int ret = copyFile(new_src_path, new_dst_path, dir.d_stat.st_size);
+				debugPrintf("Copy %s to %s: 0x%08X\n", new_src_path, new_dst_path);
 
 				free(new_dst_path);
 				free(new_src_path);
@@ -152,6 +145,7 @@ int copyExecutables(char *src_path, char *dst_path) {
 
 		sceIoDclose(dfd);
 	}
+
 	return 0;
 }
 
@@ -242,8 +236,10 @@ int main(int argc, char *argv[]) {
 	} else {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s.VPK", titleid, game_info.version_game);
-		sceIoRemove(dst_path);
-		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
+		//sceIoRemove(dst_path);
+		//makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
+		
+		makeZip(dst_path, "ux0:pspemu/Vitamin/lol/", 24, 0, NULL);
 
 		// Write steroid module
 		writeSteroid(dst_path);

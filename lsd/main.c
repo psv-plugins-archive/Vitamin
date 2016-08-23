@@ -527,9 +527,12 @@ int dumpExecutable() {
 }
 
 int getNextSelf(char *self_path, char *src_path) {
+	int ret = 0;
+
 	SceUID dfd = sceIoDopen(src_path);
 	if (dfd >= 0) {
 		int res = 0;
+
 		do {
 			SceIoDirent dir;
 			memset(&dir, 0, sizeof(SceIoDirent));
@@ -539,23 +542,16 @@ int getNextSelf(char *self_path, char *src_path) {
 				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
 					continue;
 
-				char *new_src_path = malloc(strlen(src_path) + strlen(dir.d_name) + 2);
-				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
-
-				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
-					getNextSelf(self_path, new_src_path);
-				} else {
-					sprintf(self_path, "%s", new_src_path);
-					free(new_src_path);
-					return 1;
-				}
-
-				free(new_src_path);
+				snprintf(self_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
+				ret = 1;
+				break;
 			}
 		} while (res > 0);
+
 		sceIoDclose(dfd);
 	}
-	return 0;
+
+	return ret;
 }
 
 int power_tick_thread(SceSize args, void *argp) {
@@ -617,18 +613,18 @@ int main(int argc, char *argv[]) {
 	dumpExecutable();
 
 	// Check if there is any executable left to decrypt
-	char self_path[128], tmp_path[128];
+	char self_path[MAX_PATH_LENGTH], tmp_path[128];
 	sprintf(tmp_path, "%s/Vitamin_exec", pspemu_path);
-	if (getNextSelf(self_path, tmp_path) > 0)
-		goto reload;
 
-	// Write finish titleid
+	int next_self = getNextSelf(self_path, tmp_path);
+	debugPrintf("self_path: %s\n", self_path);
+
+	// Write relaunch/finish titleid
 	char path[128];
-	sprintf(path, "%s/Vitamin/finish.bin", pspemu_path);
+	sprintf(path, "%s/Vitamin/%s.bin", pspemu_path, next_self ? "relaunch" : "finish");
 	WriteFile(path, titleid, strlen(titleid) + 1);
 
-reload:
-	// Launch Vitamin app to finish
+	// Launch Vitamin app to relaunch/finish
 	sceKernelDelayThread(1 * 1000 * 1000);
 	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
 	sceKernelExitProcess(0);
