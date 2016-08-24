@@ -76,6 +76,8 @@ typedef struct {
 	void **var_entry_table;
 } SceImportsTable3xx;
 
+void *allocateReadFile(char *path);
+
 int ReadFile(char *file, void *buf, int size);
 int WriteFile(char *file, void *buf, int size);
 int copyFile(char *src_path, char *dst_path, uint64_t size);

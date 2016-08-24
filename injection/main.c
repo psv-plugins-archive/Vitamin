@@ -72,31 +72,6 @@ int debugPrintf(char *text, ...) {
 	return 0;
 }
 
-void *allocateReadFile(char *path) {
-	// Open file
-	SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
-	if (fd < 0)
-		return NULL;
-
-	// Get file size
-	uint64_t off = sceIoLseek(fd, 0, SCE_SEEK_CUR);
-	uint64_t size = sceIoLseek(fd, 0, SCE_SEEK_END);
-	sceIoLseek(fd, off, SCE_SEEK_SET);
-
-	// Allocate buffer
-	void *buffer = malloc(size);
-	if (!buffer) {
-		sceIoClose(fd);
-		return NULL;
-	}
-
-	// Read file
-	sceIoRead(fd, buffer, size);
-	sceIoClose(fd);
-
-	return buffer;
-}
-
 int addGames(char *app_path, int is_cartridge, int count, GameInfo *game_infos, char **game_entries) {
 	SceUID dfd = sceIoDopen(app_path);
 	if (dfd >= 0) {

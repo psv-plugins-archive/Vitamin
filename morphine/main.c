@@ -99,6 +99,46 @@ void relaunchGame() {
 	sceKernelExitProcess(0);
 }
 
+void patchSfo(char *app_path, char *zip_path) {
+	char param_sfo_path[128];
+	void *buffer = NULL;
+	uint32_t attribute = 0;
+
+	// Read param.sfo
+	sprintf(param_sfo_path, "%s/sce_sys/param.sfo", app_path);
+
+	SceIoStat stat;
+	memset(&stat, 0, sizeof(SceIoStat));
+	int ret = sceIoGetstat(param_sfo_path, &stat);
+	if (ret < 0)
+		return;
+
+	buffer = malloc(stat.st_size);
+	if (!buffer)
+		return;
+	ReadFile(param_sfo_path, buffer, stat.st_size);
+
+	// Get and patch attribute
+	SfoHeader *header = (SfoHeader *)buffer;
+	SfoEntry *entries = (SfoEntry *)((uint32_t)buffer + sizeof(SfoHeader));
+
+	int i;
+	for (i = 0; i < header->count; i++) {
+		if (strcmp(buffer + header->keyofs + entries[i].nameofs, "ATTRIBUTE") == 0) {
+			attribute = *(int *)(buffer + header->valofs + entries[i].dataofs);
+			debugPrintf("original attribute = 0x%08X\n", attribute);
+			attribute &= 0xFF00FFFF;//FFFF;
+			*(int *)(buffer + header->valofs + entries[i].dataofs) = attribute;//0xFBFBFFFF;
+			break;
+		}
+	}
+	debugPrintf("new attribute = 0x%08X\n", attribute);
+
+	sceIoMkdir("ux0:pspemu/Vitamin/sce_sys", 0777);
+	WriteFile("ux0:pspemu/Vitamin/sce_sys/param.sfo", buffer, stat.st_size);
+	makeZip(zip_path, "ux0:pspemu/Vitamin/sce_sys/param.sfo", strlen("ux0:pspemu/Vitamin/"), 1, NULL);
+}
+
 int copyExecutables(char *src_path, char *dst_path) {
 	SceUID dfd = sceIoDopen(src_path);
 	if (dfd >= 0) {
@@ -211,6 +251,9 @@ int main(int argc, char *argv[]) {
 		// Write steroid module
 		writeSteroid(dst_path);
 
+		// Write patched SFO
+		patchSfo(app_path, dst_path);
+
 		// Copy executables to temporary directory
 		printf("Copying executable files for decryption...");
 		copyExecutables(app_path, "ux0:pspemu/Vitamin_exec");
@@ -243,6 +286,9 @@ int main(int argc, char *argv[]) {
 
 		// Write steroid module
 		writeSteroid(dst_path);
+
+		// Write patched SFO
+		patchSfo(app_path, dst_path);
 
 		// Copy executables to temporary directory
 		printf("Copying executable files for decryption...");
