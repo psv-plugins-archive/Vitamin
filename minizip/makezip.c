@@ -32,6 +32,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include "../common/utils.h"
+#include "../common/graphics.h"
+
 #include "zip.h"
 
 #define WRITEBUFFERSIZE (16 * 1024)

@@ -37,8 +37,6 @@
 #include "../common/graphics.h"
 #include "../common/common.h"
 
-#include "../libpromoter/promoterutil.h"
-
 #include "../minizip/makezip.h"
 
 #include "eboot_bin.h"
@@ -329,75 +327,6 @@ void addExecutables(char *zip_path, char *tmp_dir) {
 	}
 }
 
-int finishDump(GameInfo *game_info, int mode) {
-	int res;
-	char path[128], patch_path[128], tmp_path[128];
-
-	// Add converted eboot.bin
-	sprintf(path, "ux0:Vitamin/%s%s%s%s", game_info->titleid, mode == MODE_UPDATE ? "_UPDATE_" : "_FULLGAME_",
-	                                    mode == MODE_UPDATE ? game_info->version_update : game_info->version_game,
-										mode == MODE_UPDATE ? ".ZIP" : ".VPK");
-	addExecutables(path, "ux0:pspemu/Vitamin");
-
-	// Remove Vitamin path in pspemu
-	removePath("ux0:pspemu/Vitamin");
-	removePath("ux0:pspemu/Vitamin_exec");
-
-	// Do we keep this here ? Might be useful for the user in case he wants to decrypt savedata...
-	// Uninstall app.db modification
-	printf("Uninstalling app.db modification...");
-	res = uninstallAppDbMod();
-	if (res < 0)
-		goto ERROR;
-	printf("OK\n");
-
-	sceKernelDelayThread(DELAY);
-	printf("Finishing...");
-
-	// Destory all other apps
-	sceAppMgrDestroyOtherApp();
-	sceKernelDelayThread(1 * 1000 * 1000);
-
-	// Patch path
-	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
-
-	// Temp path
-	if (mode == MODE_UPDATE) {
-		sprintf(tmp_path, "ux0:app/%s_patch", game_info->titleid);
-	} else {
-		sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
-	}
-
-	// Eject morphine
-	removePath(patch_path);
-
-	// Rename
-	res = sceIoRename(tmp_path, patch_path);
-	if (res < 0 && res != 0x80010002)
-		goto ERROR;
-
-	sceKernelDelayThread(DELAY);
-	printf("OK\n");
-
-	sceKernelDelayThread(DELAY);
-	printf("\nThe game has been dumped successfully.\nPress X to exit.");
-	waitForUser();
-	sceKernelExitProcess(0);
-
-	return 0;
-
-ERROR:
-	sceKernelDelayThread(DELAY);
-	printf("Error 0x%08X\n", res);
-
-	sceKernelDelayThread(DELAY);
-	printf("\nPress X to exit.");
-	waitForUser();
-	sceKernelExitProcess(0);
-
-	return res;
-}
-
 int injectMorphine(GameInfo *game_info, int mode) {
 	int res;
 	char path[128];
@@ -547,11 +476,15 @@ int installAppDbMod() {
 	return sql_multiple_exec(APP_DB, queries);
 }
 
-int uninstallAppDbMod() {
+int uninstallAppDbMod(GameInfo *game_info) {
+	char *restore_query = malloc(0x100);
 	char *queries[] = { "DELETE FROM `tbl_uri` WHERE scheme='ux0'",
 											"DELETE FROM `tbl_uri` WHERE scheme='gro0'",
+											restore_query,
 											"UPDATE tbl_appinfo SET val='vs0:app/NPXS10001/eboot.bin' WHERE key='3022202214' and titleid='NPXS10001'",
 											NULL };
+
+	sprintf(restore_query, "UPDATE tbl_appinfo SET val='%s:app/%s/eboot.bin' WHERE key='3022202214' and titleid='%s'", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, game_info->titleid);
 
 	return sql_multiple_exec(APP_DB, queries);
 }
@@ -584,23 +517,13 @@ int getNextSelf(char *self_path, char *src_path) {
 	return ret;
 }
 
-void flushShell(GameInfo *game_info) {
-	ScePromoterUtilityLAUpdate LAUpdate_args;
-
-	scePromoterUtilityInit();
-
-	sprintf(LAUpdate_args.titleid, "%s", game_info->titleid);
-	sprintf(LAUpdate_args.path, "%s:app/%s/sce_sys/livearea", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid);
-
-	scePromoterUtilityUpdateLiveArea(&LAUpdate_args);
-	scePromoterUtilityExit();
-}
-
 int setupSelfDump(GameInfo *game_info, int mode) {
 	char self_path[128], src_path[MAX_PATH_LENGTH];
 
-	char *query = malloc(0x100);
-	char *queries[] = { query, NULL };
+	char *self_mod_query = malloc(0x100);
+	char *queries[] = { "DELETE FROM `tbl_uri` WHERE scheme='vitamin'",
+											self_mod_query,
+											NULL };
 
 	// Get next executable path in ux0:pspemu/Vitamin
 	getNextSelf(src_path, "ux0:pspemu/Vitamin_exec");
@@ -619,8 +542,8 @@ int setupSelfDump(GameInfo *game_info, int mode) {
 	// Delete executable from temp directory
 	sceIoRemove(src_path);
 
-	// Create and execute SQL query in app.db
-	sprintf(query, "UPDATE tbl_appinfo SET val='%s' WHERE key='3022202214' and titleid='%s'", self_path, game_info->titleid);
+	// Create and execute SQL queries in app.db
+	sprintf(self_mod_query, "UPDATE tbl_appinfo SET val='%s' WHERE key='3022202214' and titleid='%s'", self_path, game_info->titleid);
 	return sql_multiple_exec(APP_DB, queries);
 }
 
@@ -691,6 +614,75 @@ RESTORE:
 
 	// Restore original savedata
 	restoreSavedata();
+
+ERROR:
+	sceKernelDelayThread(DELAY);
+	printf("Error 0x%08X\n", res);
+
+	sceKernelDelayThread(DELAY);
+	printf("\nPress X to exit.");
+	waitForUser();
+	sceKernelExitProcess(0);
+
+	return res;
+}
+
+int finishDump(GameInfo *game_info, int mode) {
+	int res;
+	char path[128], patch_path[128], tmp_path[128];
+
+	// Add converted eboot.bin
+	sprintf(path, "ux0:Vitamin/%s%s%s%s", game_info->titleid, mode == MODE_UPDATE ? "_UPDATE_" : "_FULLGAME_",
+	                                    mode == MODE_UPDATE ? game_info->version_update : game_info->version_game,
+										mode == MODE_UPDATE ? ".ZIP" : ".VPK");
+	addExecutables(path, "ux0:pspemu/Vitamin");
+
+	// Remove Vitamin path in pspemu
+	removePath("ux0:pspemu/Vitamin");
+	removePath("ux0:pspemu/Vitamin_exec");
+
+	// Do we keep this here ? Might be useful for the user in case he wants to decrypt savedata...
+	// Uninstall app.db modification
+	printf("Uninstalling app.db modification...");
+	res = uninstallAppDbMod(game_info);
+	if (res < 0)
+		goto ERROR;
+	printf("OK\n");
+
+	sceKernelDelayThread(DELAY);
+	printf("Finishing...");
+
+	// Destory all other apps
+	sceAppMgrDestroyOtherApp();
+	sceKernelDelayThread(1 * 1000 * 1000);
+
+	// Patch path
+	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
+
+	// Temp path
+	if (mode == MODE_UPDATE) {
+		sprintf(tmp_path, "ux0:app/%s_patch", game_info->titleid);
+	} else {
+		sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
+	}
+
+	// Eject morphine
+	removePath(patch_path);
+
+	// Rename
+	res = sceIoRename(tmp_path, patch_path);
+	if (res < 0 && res != 0x80010002)
+		goto ERROR;
+
+	sceKernelDelayThread(DELAY);
+	printf("OK\n");
+
+	sceKernelDelayThread(DELAY);
+	printf("\nThe game has been dumped successfully.\nPress X to exit.");
+	waitForUser();
+	sceKernelExitProcess(0);
+
+	return 0;
 
 ERROR:
 	sceKernelDelayThread(DELAY);
@@ -817,7 +809,8 @@ int main(int argc, char *argv[]) {
 		ReadFile(path, &game_info, sizeof(GameInfo));
 
 		setupSelfDump(&game_info, mode);
-		flushShell(&game_info);
+
+		sceAppMgrDestroyOtherApp(); // Flush app.db
 
 		char uri[32];
 		sprintf(uri, "psgm:play?titleid=%s", titleid);
