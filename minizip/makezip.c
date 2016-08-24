@@ -46,7 +46,7 @@
 uLong filetime(const char *filename, tm_zip *tmzip, uLong *dostime) {
 	struct stat s;
 	memset(&s, 0, sizeof(struct stat));
-	if (stat(filename, &s) == 0)
+	if (stat(filename, &s) != 0)
 		return 0;
 
 	struct tm *filedate = localtime(&s.st_mtime);
