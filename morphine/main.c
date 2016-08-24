@@ -208,6 +208,9 @@ void initPowerTickThread() {
 int main(int argc, char *argv[]) {
 	char path[128], dst_path[128], app_path[128], tmp_path[128];
 
+	// Set CPU clock to 444mhz
+	scePowerSetArmClockFrequency(444);
+
 	// Init power tick thread
 	initPowerTickThread();
 
@@ -279,10 +282,11 @@ int main(int argc, char *argv[]) {
 	} else {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s.VPK", titleid, game_info.version_game);
-		//sceIoRemove(dst_path);
-		//makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
+		sceIoRemove(dst_path);
+		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
 
-		makeZip(dst_path, "ux0:pspemu/Vitamin/lol/", 24, 0, NULL);
+		// Fake entry
+		// makeZip(dst_path, "ux0:pspemu/Vitamin/lol/", 24, 0, NULL);
 
 		// Write steroid module
 		writeSteroid(dst_path);

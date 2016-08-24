@@ -1,7 +1,7 @@
 TARGET  = lsd
 OBJS    = main.o payload.o ../common/utils.o ../common/graphics.o ../common/font.o
 
-LIBS    = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub
+LIBS    = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub -lScePower_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc

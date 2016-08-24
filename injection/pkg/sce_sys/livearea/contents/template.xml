@@ -8,4 +8,12 @@
 	<gate>
 		<startup-image>startup.png</startup-image>
 	</gate>
+	
+	<frame id="frame3">
+		<liveitem>
+			<text origin="background" line-align="center" margin-bottom="1">
+				<str size="30" bold="off" shadow="on">Vitamin for your PlayStation®Vita</str>
+			</text>
+		</liveitem>
+	</frame>
 </livearea>

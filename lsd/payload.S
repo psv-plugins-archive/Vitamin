@@ -23,7 +23,7 @@ payload_start:
 	nop
 
 	# Push stack
-	sub sp, #0x14
+	sub sp, #0x10
 
 	# Save arguments
 	strd a1, a2, [sp, #8]
@@ -48,7 +48,7 @@ payload_start:
 	ldrd a1, a2, [sp, #8]
 
 	# Pop stack
-	add sp, #0x14
+	add sp, #0x10
 
 	# Execute 0x33333333 in thumb mode (module_start)
 	ldr v1, [pc, #0x14]

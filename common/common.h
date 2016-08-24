@@ -19,6 +19,8 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
+#include <psp2/power.h>
+
 #define VITAMIN_VERSION_MAJOR 1
 
 typedef struct {
@@ -43,10 +45,17 @@ void printLayout(char *info, char *title) {
 	psvDebugScreenSetLeftMargin(1);
 	psvDebugScreenSetXY(0, 2);
 
-	// Name
+	// Title
 	psvDebugScreenSetFgColor(CYAN);
-	printf("Vitamin by Team FreeK\n");
+	printf("Vitamin by Team FreeK");
 	psvDebugScreenSetFgColor(WHITE);
+
+	// Battery
+	char percent[8];
+	sprintf(percent, "%d%%", scePowerGetBatteryLifePercent());
+	psvDebugScreenSetXY(59 - strlen(percent), psvDebugScreenGetY());
+	printf("%s\n", percent);
+
 	printf("----------------------------------------------------------\n\n");
 
 	// Info

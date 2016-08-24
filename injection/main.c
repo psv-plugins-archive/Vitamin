@@ -126,7 +126,7 @@ int addGames(char *app_path, int is_cartridge, int count, GameInfo *game_infos, 
 							// Get version
 							getSfoString(buffer, "APP_VER", game_infos[count].version_update, 8);
 
-							// Copy üatch version
+							// Copy patch version
 							strcpy(game_infos[count].version, game_infos[count].version_update);
 
 							// Free buffer
