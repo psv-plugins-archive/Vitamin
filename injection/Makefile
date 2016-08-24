@@ -1,6 +1,6 @@
 TITLE_ID = VITAMIN00
 TARGET   = Vitamin
-OBJS     = main.o ../common/utils.o ../common/graphics.o ../common/font.o vita_sqlite.o ../minizip/makezip.o ../minizip/zip.o ../minizip/ioapi.o
+OBJS     = main.o menu.o game.o ../common/common.o ../common/utils.o ../common/graphics.o ../common/font.o vita_sqlite.o ../minizip/makezip.o ../minizip/zip.o ../minizip/ioapi.o
 
 LIBS     = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceKernel_stub -lScePower_stub -lz libsqlite3.a
 

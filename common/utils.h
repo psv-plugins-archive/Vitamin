@@ -80,10 +80,11 @@ void *allocateReadFile(char *path);
 
 int ReadFile(char *file, void *buf, int size);
 int WriteFile(char *file, void *buf, int size);
-int copyFile(char *src_path, char *dst_path, uint64_t size);
 
+int copyFile(char *src_path, char *dst_path, uint64_t size);
 int copyPath(char *src_path, char *dst_path);
 int removePath(char *path);
+int getPathInfo(char *path, uint64_t *size, uint32_t *folders, uint32_t *files);
 
 void getSizeString(char *string, uint64_t size);
 

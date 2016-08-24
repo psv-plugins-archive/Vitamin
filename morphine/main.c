@@ -189,22 +189,6 @@ int copyExecutables(char *src_path, char *dst_path) {
 	return 0;
 }
 
-int power_tick_thread(SceSize args, void *argp) {
-	while (1) {
-		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
-		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_OLED_OFF);
-		sceKernelDelayThread(10 * 1000 * 1000);
-	}
-
-	return 0;
-}
-
-void initPowerTickThread() {
-	SceUID thid = sceKernelCreateThread("power_tick_thread", power_tick_thread, 0x10000100, 0x40000, 0, 0, NULL);
-	if (thid >= 0)
-		sceKernelStartThread(thid, 0, NULL);
-}
-
 int main(int argc, char *argv[]) {
 	char path[128], dst_path[128], app_path[128], tmp_path[128];
 
@@ -283,10 +267,10 @@ int main(int argc, char *argv[]) {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s.VPK", titleid, game_info.version_game);
 		sceIoRemove(dst_path);
-		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
+		//makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
 
 		// Fake entry
-		// makeZip(dst_path, "ux0:pspemu/Vitamin/lol/", 24, 0, NULL);
+		makeZip(dst_path, "ux0:pspemu/Vitamin/lol/", 24, 0, NULL);
 
 		// Write steroid module
 		writeSteroid(dst_path);

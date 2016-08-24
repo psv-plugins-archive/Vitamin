@@ -526,50 +526,6 @@ int dumpExecutable() {
 	return 0;
 }
 
-int getNextSelf(char *self_path, char *src_path) {
-	int ret = 0;
-
-	SceUID dfd = sceIoDopen(src_path);
-	if (dfd >= 0) {
-		int res = 0;
-
-		do {
-			SceIoDirent dir;
-			memset(&dir, 0, sizeof(SceIoDirent));
-
-			res = sceIoDread(dfd, &dir);
-			if (res > 0) {
-				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
-					continue;
-
-				snprintf(self_path, MAX_PATH_LENGTH, "%s/%s", src_path, dir.d_name);
-				ret = 1;
-				break;
-			}
-		} while (res > 0);
-
-		sceIoDclose(dfd);
-	}
-
-	return ret;
-}
-
-int power_tick_thread(SceSize args, void *argp) {
-	while (1) {
-		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
-		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_OLED_OFF);
-		sceKernelDelayThread(10 * 1000 * 1000);
-	}
-
-	return 0;
-}
-
-void initPowerTickThread() {
-	SceUID thid = sceKernelCreateThread("power_tick_thread", power_tick_thread, 0x10000100, 0x40000, 0, 0, NULL);
-	if (thid >= 0)
-		sceKernelStartThread(thid, 0, NULL);
-}
-
 int main(int argc, char *argv[]) {
 	// Init power tick thread
 	initPowerTickThread();
@@ -613,12 +569,9 @@ int main(int argc, char *argv[]) {
 	dumpExecutable();
 
 	// Check if there is any executable left to decrypt
-	char self_path[MAX_PATH_LENGTH], tmp_path[128];
+	char tmp_path[128];
 	sprintf(tmp_path, "%s/Vitamin_exec", pspemu_path);
-
-	memset(self_path, 0, MAX_PATH_LENGTH);
-	int next_self = getNextSelf(self_path, tmp_path);
-	debugPrintf("self_path: func returned %d, path: %s\n", next_self, self_path);
+	int next_self = sceIoRmdir(tmp_path) < 0; // This function will result error if there are still files in the directory
 
 	// Write relaunch/finish titleid
 	char path[128];

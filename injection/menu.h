@@ -16,11 +16,12 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __MAIN_H__
-#define __MAIN_H__
+#ifndef __MENU_H__
+#define __MENU_H__
 
-#define SCE_APPMGR_APP_PARAM_CONTENT_ID 6
-#define SCE_APPMGR_APP_PARAM_CATEGORY 8
-#define SCE_APPMGR_APP_PARAM_TITLE_ID 12
+#define ENTRIES_PER_PAGE 15
+
+void waitForUser();
+int doMenu(char *info, char *title, int back_button, char **entries, int n_entries);
 
 #endif

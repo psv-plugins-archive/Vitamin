@@ -33,6 +33,9 @@
 #include <sqlite3.h>
 
 #include "main.h"
+#include "menu.h"
+#include "game.h"
+
 #include "../common/utils.h"
 #include "../common/graphics.h"
 #include "../common/common.h"
@@ -51,10 +54,6 @@
 // TODO: progressbar
 // TODO: more error handling
 
-#define MAX_GAMES 128
-
-#define ENTRIES_PER_PAGE 15
-
 int debugPrintf(char *text, ...) {
 	va_list list;
 	char string[512];
@@ -70,202 +69,6 @@ int debugPrintf(char *text, ...) {
 	}
 
 	return 0;
-}
-
-int addGames(char *app_path, int is_cartridge, int count, GameInfo *game_infos, char **game_entries) {
-	SceUID dfd = sceIoDopen(app_path);
-	if (dfd >= 0) {
-		int res = 0;
-
-		do {
-			SceIoDirent dir;
-			memset(&dir, 0, sizeof(SceIoDirent));
-
-			res = sceIoDread(dfd, &dir);
-			if (res > 0) {
-				char path[128];
-				sprintf(path, "%s/%s/sce_sys/clearsign", app_path, dir.d_name);
-
-				SceIoStat stat;
-				memset(&stat, 0, sizeof(SceIoStat));
-				if (sceIoGetstat(path, &stat) >= 0) {
-					void *buffer = NULL;
-
-					// Read app param.sfo
-					sprintf(path, "%s/%s/sce_sys/param.sfo", app_path, dir.d_name);
-					buffer = allocateReadFile(path);
-					if (!buffer)
-						continue;
-
-					// Clear
-					memset(&game_infos[count], 0, sizeof(GameInfo));
-
-					// Is cartridge
-					game_infos[count].is_cartridge = is_cartridge;
-
-					// Get title
-					getSfoString(buffer, "TITLE", game_infos[count].name, 128);
-
-					// Get title id
-					getSfoString(buffer, "TITLE_ID", game_infos[count].titleid, 12);
-
-					// Get version
-					getSfoString(buffer, "APP_VER", game_infos[count].version_game, 8);
-
-					// Copy game version
-					strcpy(game_infos[count].version, game_infos[count].version_game);
-
-					// Free buffer
-					free(buffer);
-
-					// Read patch param.sfo
-					if (!is_cartridge) {
-						sprintf(path, "ux0:patch/%s/sce_sys/param.sfo", dir.d_name);
-						buffer = allocateReadFile(path);
-						if (buffer) {
-							// Get version
-							getSfoString(buffer, "APP_VER", game_infos[count].version_update, 8);
-
-							// Copy patch version
-							strcpy(game_infos[count].version, game_infos[count].version_update);
-
-							// Free buffer
-							free(buffer);
-						}
-					}
-
-					// Name
-					char *name = malloc(256);
-					sprintf(name, "[%s] %s", game_infos[count].titleid, game_infos[count].name);
-					game_entries[count] = name;
-
-					count++;
-				}
-			}
-		} while (res > 0 && count < MAX_GAMES);
-
-		sceIoDclose(dfd);
-	}
-
-	return count;
-}
-
-int getGames(GameInfo *game_infos, char **game_entries) {
-	int count = 0;
-
-	// Open cartridge app folder
-	count = addGames("gro0:app", 1, count, game_infos, game_entries);
-
-	// Open app folder
-	count = addGames("ux0:app", 0, count, game_infos, game_entries);
-/*
-	int i;
-	for (i = 0; i < 12; i++) {
-		char *name = malloc(256);
-		sprintf(name, "Test %d", i);
-		game_entries[count] = name;
-		count++;
-	}
-*/
-	return count;
-}
-
-static uint32_t current_buttons = 0, pressed_buttons = 0;
-
-void waitForUser() {
-	while (1) {
-		SceCtrlData pad;
-		memset(&pad, 0, sizeof(SceCtrlData));
-		sceCtrlPeekBufferPositive(0, &pad, 1);
-
-		pressed_buttons = pad.buttons & ~current_buttons;
-		current_buttons = pad.buttons;
-
-		if (pressed_buttons & SCE_CTRL_CROSS) {
-			break;
-		}
-
-		sceDisplayWaitVblankStart();
-	}
-}
-
-int doMenu(char *info, char *title, int back_button, char **entries, int n_entries) {
-	int back = 0;
-	int sel = 0;
-
-	psvDebugScreenClear(DARKBLUE);
-	psvDebugScreenSetBgColor(DARKBLUE);
-
-	while (1) {
-		// Ctrl
-		SceCtrlData pad;
-		memset(&pad, 0, sizeof(SceCtrlData));
-		sceCtrlPeekBufferPositive(0, &pad, 1);
-
-		pressed_buttons = pad.buttons & ~current_buttons;
-		current_buttons = pad.buttons;
-
-		if (pressed_buttons & SCE_CTRL_UP) {
-			if (sel > 0) {
-				int old_sel = sel;
-
-				sel--;
-
-				if (entries[sel][0] == '\0')
-					sel--;
-
-				// Clear screen at new page
-				if ((old_sel / ENTRIES_PER_PAGE) != (sel / ENTRIES_PER_PAGE)) {
-					psvDebugScreenClearMargin(DARKBLUE);
-				}
-			}
-		} else if (pressed_buttons & SCE_CTRL_DOWN) {
-			if (sel < (n_entries - 1)) {
-				int old_sel = sel;
-
-				sel++;
-
-				if (entries[sel][0] == '\0')
-					sel++;
-
-				// Clear screen at new page
-				if ((old_sel / ENTRIES_PER_PAGE) != (sel / ENTRIES_PER_PAGE)) {
-					psvDebugScreenClearMargin(DARKBLUE);
-				}
-			}
-		} else if (pressed_buttons & SCE_CTRL_CROSS) {
-			return sel;
-		} else if (pressed_buttons & SCE_CTRL_CIRCLE) {
-			if (back_button >= 0) {
-				sel = back_button;
-				back = 1;
-			}
-		}
-
-		// Layout
-		printLayout(info, title);
-
-		// Entries
-		int page = sel / ENTRIES_PER_PAGE;
-		int last_page_number = n_entries / ENTRIES_PER_PAGE;
-		int n_entries_last_page = n_entries % ENTRIES_PER_PAGE;
-
-		int count = (page == last_page_number) ? n_entries_last_page : ENTRIES_PER_PAGE;
-
-		int i;
-		for (i = (page * ENTRIES_PER_PAGE); i < ((page * ENTRIES_PER_PAGE) + count); i++) {
-			psvDebugScreenSetFgColor((sel == i) ? WHITE : YELLOW);
-			printf("%c %s\n", (sel == i) ? '>' : ' ', entries[i]);
-		}
-
-		// Back
-		if (back)
-			return back_button;
-
-		sceDisplayWaitVblankStart();
-	}
-
-	return -1;
 }
 
 void restoreSavedata() {
@@ -330,7 +133,6 @@ int injectMorphine(GameInfo *game_info, int mode) {
 	res = sceIoMkdir("ux0:pspemu/Vitamin_exec", 0777);
 	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
 		return res;
-
 
 	// Make patch dir
 	sprintf(path, "ux0:patch/%s", game_info->titleid);
@@ -444,20 +246,20 @@ int sql_multiple_exec(char *db_path, char *queries[]) {
 
 int installAppDbMod() {
 	char *queries[] = { "INSERT INTO `tbl_uri` VALUES ('NPXS10001',1,'ux0',NULL)",
-											"INSERT INTO `tbl_uri` VALUES ('NPXS10001',1,'gro0',NULL)",
-											"UPDATE tbl_appinfo SET val='vs0:app/NPXS10027/eboot.bin' WHERE key='3022202214' and titleid='NPXS10001'",
-											NULL };
+						"INSERT INTO `tbl_uri` VALUES ('NPXS10001',1,'gro0',NULL)",
+						"UPDATE tbl_appinfo SET val='vs0:app/NPXS10027/eboot.bin' WHERE key='3022202214' and titleid='NPXS10001'",
+						NULL };
 
 	return sql_multiple_exec(APP_DB, queries);
 }
 
 int uninstallAppDbMod(GameInfo *game_info) {
-	char *restore_query = malloc(0x100);
+	char restore_query[0x100];
 	char *queries[] = { "DELETE FROM `tbl_uri` WHERE scheme='ux0'",
-											"DELETE FROM `tbl_uri` WHERE scheme='gro0'",
-											restore_query,
-											"UPDATE tbl_appinfo SET val='vs0:app/NPXS10001/eboot.bin' WHERE key='3022202214' and titleid='NPXS10001'",
-											NULL };
+						"DELETE FROM `tbl_uri` WHERE scheme='gro0'",
+						restore_query,
+						"UPDATE tbl_appinfo SET val='vs0:app/NPXS10001/eboot.bin' WHERE key='3022202214' and titleid='NPXS10001'",
+						NULL };
 
 	sprintf(restore_query, "UPDATE tbl_appinfo SET val='%s:app/%s/eboot.bin' WHERE key='3022202214' and titleid='%s'", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, game_info->titleid);
 
@@ -495,9 +297,9 @@ int getNextSelf(char *self_path, char *src_path) {
 int setupSelfDump(GameInfo *game_info, int mode) {
 	char self_path[128], src_path[MAX_PATH_LENGTH];
 
-	char *self_mod_query = malloc(0x100);
+	char self_mod_query[0x100];
 	char *queries[] = { self_mod_query,
-											NULL };
+						NULL };
 
 	// Get next executable path in ux0:pspemu/Vitamin
 	getNextSelf(src_path, "ux0:pspemu/Vitamin_exec");
@@ -519,86 +321,6 @@ int setupSelfDump(GameInfo *game_info, int mode) {
 	// Create and execute SQL queries in app.db
 	sprintf(self_mod_query, "UPDATE tbl_appinfo SET val='%s' WHERE key='3022202214' and titleid='%s'", self_path, game_info->titleid);
 	return sql_multiple_exec(APP_DB, queries);
-}
-
-int dumpFullGame(GameInfo *game_info) {
-	int res;
-	char patch_path[128], tmp_path[128];
-
-	sceKernelDelayThread(DELAY);
-	printf("Injecting morphine...");
-
-	// Destory all other apps
-	sceAppMgrDestroyOtherApp();
-	sceKernelDelayThread(1 * 1000 * 1000);
-
-	// Backup savedata and let the application create a new savegame with its new encryption key
-	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
-	if (res < 0 && res != 0x80010002)
-		goto ERROR;
-
-	// Patch path and temp path
-	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
-	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
-
-	// Backup original patch
-	res = sceIoRename(patch_path, tmp_path);
-	if (res < 0 && res != 0x80010002)
-		goto RESTORE;
-
-	// Inject morphine
-	res = injectMorphine(game_info, MODE_FULL_GAME);
-	if (res < 0)
-		goto RESTORE;
-
-	sceKernelDelayThread(DELAY);
-	printf("OK\n");
-
-	// Install app.db modification
-	printf("Installing app.db modification...");
-	res = installAppDbMod();
-	if (res < 0)
-		goto RESTORE;
-	printf("OK\n");
-
-	// Open manual and launch game
-	openManualLaunchGame(game_info);
-
-	return 0;
-
-RESTORE:
-	// Patch path and temp path
-	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
-	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
-
-	// Restore original patch
-	SceUID dfd = sceIoDopen(tmp_path);
-	if (dfd >= 0) {
-		sceIoDclose(dfd);
-		removePath(patch_path);
-		sceIoRename(tmp_path, patch_path);
-	}
-
-	// Eject morphine
-	sprintf(tmp_path, "%s/mode.bin", patch_path);
-	SceUID fd = sceIoOpen(tmp_path, SCE_O_RDONLY, 0);
-	if (fd > 0) {
-		removePath(patch_path);
-	}
-
-	// Restore original savedata
-	restoreSavedata();
-
-ERROR:
-	sceKernelDelayThread(DELAY);
-	printf("Error 0x%08X\n", res);
-
-	sceKernelDelayThread(DELAY);
-	printf("\nPress X to exit.");
-	waitForUser();
-	sceKernelExitProcess(0);
-
-	return res;
 }
 
 int finishDump(GameInfo *game_info, int mode) {
@@ -670,10 +392,23 @@ ERROR:
 	return res;
 }
 
-int dumpUpdate(GameInfo *game_info) {
+int dumpFullGame(GameInfo *game_info) {
 	int res;
 	char app_path[128], patch_path[128], tmp_path[128];
 
+	// App path, patch path and temp path
+	sprintf(app_path, "ux0:app/%s", game_info->titleid);
+	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
+	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
+
+	// Install app.db modification
+	printf("Installing app.db modification...");
+	res = installAppDbMod();
+	if (res < 0)
+		goto ERROR_INSTALL_APPDB_MOD;
+	printf("OK\n");
+
+	// Inject morphine
 	sceKernelDelayThread(DELAY);
 	printf("Injecting morphine...");
 
@@ -684,36 +419,22 @@ int dumpUpdate(GameInfo *game_info) {
 	// Backup savedata and let the application create a new savegame with its new encryption key
 	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
 	if (res < 0 && res != 0x80010002)
-		goto ERROR;
+		goto ERROR_RENAME_SAVEDATA;
 
-	// App path and temp path
-	sprintf(app_path, "ux0:app/%s", game_info->titleid);
-	sprintf(tmp_path, "ux0:app/%s_org", game_info->titleid);
+	// Backup original patch
+	res = sceIoRename(patch_path, tmp_path);
+	if (res < 0 && res != 0x80010002)
+		goto ERROR_RENAME_PATCH;
 
-	// Backup original app
-	res = sceIoRename(app_path, tmp_path);
-	if (res < 0)
-		goto ERROR;
-
-	// Move patch files to ux0:app
-	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
-	res = sceIoRename(patch_path, app_path);
-	if (res < 0)
-		goto ERROR;
+	// Get game size
+	getPathInfo(app_path, &game_info->size, NULL, NULL);
 
 	// Inject morphine
-	res = injectMorphine(game_info, MODE_UPDATE);
+	res = injectMorphine(game_info, MODE_FULL_GAME);
 	if (res < 0)
-		goto ERROR;
+		goto ERROR_INJECT_MORPHINE;
 
 	sceKernelDelayThread(DELAY);
-	printf("OK\n");
-
-	// Install app.db modification
-	printf("Installing app.db modification...");
-	res = installAppDbMod();
-	if (res < 0)
-		goto ERROR;
 	printf("OK\n");
 
 	// Open manual and launch game
@@ -721,7 +442,16 @@ int dumpUpdate(GameInfo *game_info) {
 
 	return 0;
 
-ERROR:
+ERROR_INJECT_MORPHINE:
+	removePath(patch_path);
+
+ERROR_RENAME_PATCH:
+	sceIoRename(tmp_path, patch_path);
+
+ERROR_RENAME_SAVEDATA:
+	restoreSavedata();
+
+ERROR_INSTALL_APPDB_MOD:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
 
@@ -733,20 +463,83 @@ ERROR:
 	return res;
 }
 
-int power_tick_thread(SceSize args, void *argp) {
-	while (1) {
-		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
-		sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_OLED_OFF);
-		sceKernelDelayThread(10 * 1000 * 1000);
-	}
+int dumpUpdate(GameInfo *game_info) {
+	int res;
+	char app_path[128], patch_path[128], tmp_path[128];
+
+	// App path, patch path and temp path
+	sprintf(app_path, "ux0:app/%s", game_info->titleid);
+	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
+	sprintf(tmp_path, "ux0:app/%s_org", game_info->titleid);
+
+	// Install app.db modification
+	printf("Installing app.db modification...");
+	res = installAppDbMod();
+	if (res < 0)
+		goto ERROR_INSTALL_APPDB_MOD;
+	printf("OK\n");
+
+	// Inject morphine
+	sceKernelDelayThread(DELAY);
+	printf("Injecting morphine...");
+
+	// Destory all other apps
+	sceAppMgrDestroyOtherApp();
+	sceKernelDelayThread(1 * 1000 * 1000);
+
+	// Backup savedata and let the application create a new savegame with its new encryption key
+	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
+	if (res < 0 && res != 0x80010002)
+		goto ERROR_RENAME_SAVEDATA;
+
+	// Backup original app
+	res = sceIoRename(app_path, tmp_path);
+	if (res < 0)
+		goto ERROR_RENAME_APP;
+
+	// Move patch files to ux0:app
+	res = sceIoRename(patch_path, app_path);
+	if (res < 0)
+		goto ERROR_RENAME_PATCH;
+
+	// Get game size
+	getPathInfo(app_path, &game_info->size, NULL, NULL);
+
+	// Inject morphine
+	res = injectMorphine(game_info, MODE_UPDATE);
+	if (res < 0)
+		goto ERROR_INJECT_MORPHINE;
+
+	sceKernelDelayThread(DELAY);
+	printf("OK\n");
+
+	// Open manual and launch game
+	openManualLaunchGame(game_info);
 
 	return 0;
-}
 
-void initPowerTickThread() {
-	SceUID thid = sceKernelCreateThread("power_tick_thread", power_tick_thread, 0x10000100, 0x40000, 0, 0, NULL);
-	if (thid >= 0)
-		sceKernelStartThread(thid, 0, NULL);
+ERROR_INJECT_MORPHINE:
+	removePath(patch_path);
+
+ERROR_RENAME_PATCH:
+	sceIoRename(app_path, patch_path);
+
+ERROR_RENAME_APP:
+	sceIoRename(tmp_path, app_path);
+
+ERROR_RENAME_SAVEDATA:
+	restoreSavedata();
+
+ERROR_INSTALL_APPDB_MOD:
+	sceKernelDelayThread(DELAY);
+	printf("Error 0x%08X\n", res);
+
+	sceKernelDelayThread(DELAY);
+	printf("\nPress X to exit.");
+	waitForUser();
+	sceKernelExitProcess(0);
+
+	return res;
 }
 
 int main(int argc, char *argv[]) {

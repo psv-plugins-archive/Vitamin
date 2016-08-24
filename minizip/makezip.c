@@ -38,39 +38,18 @@
 #include "zip.h"
 
 #define WRITEBUFFERSIZE (16 * 1024)
-#define MAXFILENAME	 (256)
 
 #define MAX_PATH_LENGTH 1024
 
 #define COMPRESS_LEVEL Z_DEFAULT_COMPRESSION
 
 uLong filetime(const char *filename, tm_zip *tmzip, uLong *dostime) {
-	int ret = 0;
+	struct stat s;
+	memset(&s, 0, sizeof(struct stat));
+	if (stat(filename, &s) == 0)
+		return 0;
 
-	struct stat s = {0};
-	struct tm* filedate;
-	time_t tm_t = 0;
-
-	if (strcmp(filename, "-") != 0) {
-		char name[MAXFILENAME + 1];
-		int len = strlen(filename);
-		if (len > MAXFILENAME)
-			len = MAXFILENAME;
-
-		strncpy(name, filename, MAXFILENAME - 1);
-		name[MAXFILENAME] = 0;
-
-		if (name[len - 1] == '/')
-			name[len - 1] = 0;
-
-		// not all systems allow stat'ing a file with / appended
-		if (stat(name,&s) == 0) {
-			tm_t = s.st_mtime;
-			ret = 1;
-		}
-	}
-
-	filedate = localtime(&tm_t);
+	struct tm *filedate = localtime(&s.st_mtime);
 
 	tmzip->tm_sec  = filedate->tm_sec;
 	tmzip->tm_min  = filedate->tm_min;
@@ -79,7 +58,7 @@ uLong filetime(const char *filename, tm_zip *tmzip, uLong *dostime) {
 	tmzip->tm_mon  = filedate->tm_mon ;
 	tmzip->tm_year = filedate->tm_year;
 
-	return ret;
+	return 1;
 }
 
 int zipAddFile(zipFile zf, char *path, int filename_start, int (* handler)(char *path)) {

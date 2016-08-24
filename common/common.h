@@ -23,12 +23,15 @@
 
 #define VITAMIN_VERSION_MAJOR 1
 
+#define printf psvDebugScreenPrintf
+
 typedef struct {
 	char name[128];
 	char titleid[12];
 	char version[8];
 	char version_game[8];
 	char version_update[8];
+	uint64_t size;
 	int is_cartridge;
 } GameInfo;
 
@@ -39,49 +42,8 @@ enum Modes {
 
 int sceAppMgrDestroyOtherApp();
 
-void printLayout(char *info, char *title) {
-	psvDebugScreenResetMargin();
+void printLayout(char *info, char *title);
 
-	psvDebugScreenSetLeftMargin(1);
-	psvDebugScreenSetXY(0, 2);
-
-	// Title
-	psvDebugScreenSetFgColor(CYAN);
-	printf("Vitamin by Team FreeK");
-	psvDebugScreenSetFgColor(WHITE);
-
-	// Battery
-	char percent[8];
-	sprintf(percent, "%d%%", scePowerGetBatteryLifePercent());
-	psvDebugScreenSetXY(59 - strlen(percent), psvDebugScreenGetY());
-	printf("%s\n", percent);
-
-	printf("----------------------------------------------------------\n\n");
-
-	// Info
-	psvDebugScreenSetFgColor(GRAY);
-	psvDebugScreenSetLeftMargin(2);
-	printf(info);
-
-	// Title
-	psvDebugScreenSetLeftMargin(3);
-	psvDebugScreenSetFgColor(GREEN);
-	printf("\n\n%s\n\n", title);
-
-	int x = psvDebugScreenGetX();
-	int y = psvDebugScreenGetY();
-
-	psvDebugScreenSetLeftMargin(1);
-	psvDebugScreenSetXY(0, 27);
-	psvDebugScreenSetFgColor(WHITE);
-	printf("----------------------------------------------------------\n\n");
-
-	psvDebugScreenSetXY(x, y);
-
-	psvDebugScreenSetLeftMargin(3);
-	psvDebugScreenSetRightMargin(57);
-	psvDebugScreenSetTopMargin(y);
-	psvDebugScreenSetBottomMargin(24);
-}
+void initPowerTickThread();
 
 #endif

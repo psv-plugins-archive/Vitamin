@@ -16,11 +16,13 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef __MAIN_H__
-#define __MAIN_H__
+#ifndef __GAME_H__
+#define __GAME_H__
 
-#define SCE_APPMGR_APP_PARAM_CONTENT_ID 6
-#define SCE_APPMGR_APP_PARAM_CATEGORY 8
-#define SCE_APPMGR_APP_PARAM_TITLE_ID 12
+#include "../common/common.h"
+
+#define MAX_GAMES 128
+
+int getGames(GameInfo *game_infos, char **game_entries);
 
 #endif

@@ -217,6 +217,65 @@ int removePath(char *path) {
 	return 0;
 }
 
+int getPathInfo(char *path, uint64_t *size, uint32_t *folders, uint32_t *files) {
+	SceUID dfd = sceIoDopen(path);
+	if (dfd >= 0) {
+		int res = 0;
+
+		do {
+			SceIoDirent dir;
+			memset(&dir, 0, sizeof(SceIoDirent));
+
+			res = sceIoDread(dfd, &dir);
+			if (res > 0) {
+				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
+					continue;
+
+				char *new_path = malloc(strlen(path) + strlen(dir.d_name) + 2);
+				snprintf(new_path, MAX_PATH_LENGTH, "%s/%s", path, dir.d_name);
+
+				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
+					int ret = getPathInfo(new_path, size, folders, files);
+					if (ret < 0) {
+						free(new_path);
+						sceIoDclose(dfd);
+						return ret;
+					}
+				} else {
+					if (size)
+						(*size) += dir.d_stat.st_size;
+
+					if (files)
+						(*files)++;
+				}
+
+				free(new_path);
+			}
+		} while (res > 0);
+
+		sceIoDclose(dfd);
+
+		if (folders)
+			(*folders)++;
+	} else {
+		if (size) {
+			SceIoStat stat;
+			memset(&stat, 0, sizeof(SceIoStat));
+
+			int res = sceIoGetstat(path, &stat);
+			if (res < 0)
+				return res;
+
+			(*size) += stat.st_size;
+		}
+
+		if (files)
+			(*files)++;
+	}
+
+	return 0;
+}
+
 void getSizeString(char *string, uint64_t size) {
 	double double_size = (double)size;
 
