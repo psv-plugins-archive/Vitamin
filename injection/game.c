@@ -64,7 +64,7 @@ int addGames(char *app_path, int is_cartridge, int count, GameInfo *game_infos, 
 					game_infos[count].is_cartridge = is_cartridge;
 
 					// Get title
-					getSfoString(buffer, "TITLE", game_infos[count].name, 128);
+					getSfoString(buffer, "TITLE", game_infos[count].name, 40 - 1);
 
 					// Get title id
 					getSfoString(buffer, "TITLE_ID", game_infos[count].titleid, 12);

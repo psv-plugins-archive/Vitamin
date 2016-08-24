@@ -26,7 +26,7 @@
 #define printf psvDebugScreenPrintf
 
 typedef struct {
-	char name[128];
+	char name[40];
 	char titleid[12];
 	char version[8];
 	char version_game[8];

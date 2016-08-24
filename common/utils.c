@@ -82,7 +82,7 @@ int WriteFile(char *file, void *buf, int size) {
 	return written;
 }
 
-int copyFile(char *src_path, char *dst_path, uint64_t size) {
+int copyFile(char *src_path, char *dst_path) {
 	SceUID fdsrc = sceIoOpen(src_path, SCE_O_RDONLY, 0);
 	if (fdsrc < 0)
 		return fdsrc;
@@ -139,7 +139,7 @@ int copyPath(char *src_path, char *dst_path) {
 				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
 					ret = copyPath(new_src_path, new_dst_path);
 				} else {
-					ret = copyFile(new_src_path, new_dst_path, dir.d_stat.st_size);
+					ret = copyFile(new_src_path, new_dst_path);
 				}
 
 				free(new_dst_path);
@@ -160,7 +160,7 @@ int copyPath(char *src_path, char *dst_path) {
 		if (ret < 0)
 			return ret;
 
-		return copyFile(src_path, dst_path, stat.st_size);
+		return copyFile(src_path, dst_path);
 	}
 
 	return 0;

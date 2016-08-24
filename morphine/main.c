@@ -64,7 +64,7 @@ int ignoreHandler(char *path) {
 	char *ext  = strrchr(path, '.');
 	if (ext != NULL && strcmp(ext, ".self") == 0 )
 		return 1;
-	if (strstr(path, "eboot.bin") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
+	if (strstr(path, "eboot.bin") || strstr(path, "param.sfo") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
 		return 1;
 	}
 
@@ -170,7 +170,7 @@ int copyExecutables(char *src_path, char *dst_path) {
 				char *new_dst_path = malloc(strlen(dst_path) + strlen(dir.d_name) + 2);
 				snprintf(new_dst_path, MAX_PATH_LENGTH, "%s/%s", dst_path, dir.d_name);
 
-				int ret = copyFile(new_src_path, new_dst_path, dir.d_stat.st_size);
+				int ret = copyFile(new_src_path, new_dst_path);
 				debugPrintf("Copy %s to %s\n", new_src_path, new_dst_path);
 
 				free(new_dst_path);
@@ -267,10 +267,10 @@ int main(int argc, char *argv[]) {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s.VPK", titleid, game_info.version_game);
 		sceIoRemove(dst_path);
-		//makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
+		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
 
 		// Fake entry
-		makeZip(dst_path, "ux0:pspemu/Vitamin/lol/", 24, 0, NULL);
+		// makeZip(dst_path, "ux0:pspemu/Vitamin/lol/", 24, 0, NULL);
 
 		// Write steroid module
 		writeSteroid(dst_path);

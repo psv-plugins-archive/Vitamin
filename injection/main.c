@@ -109,6 +109,10 @@ int injectMorphine(GameInfo *game_info, int mode) {
 	int res;
 	char path[128];
 
+	// Remove temp pspemu paths
+	removePath("ux0:pspemu/Vitamin");
+	removePath("ux0:pspemu/Vitamin_exec");
+
 	// Make Vitamin dir
 	res = sceIoMkdir("ux0:Vitamin", 0777);
 	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
@@ -254,11 +258,17 @@ int installAppDbMod() {
 }
 
 int uninstallAppDbMod(GameInfo *game_info) {
-	char restore_query[0x100];
 	char *queries[] = { "DELETE FROM `tbl_uri` WHERE scheme='ux0'",
 						"DELETE FROM `tbl_uri` WHERE scheme='gro0'",
-						restore_query,
 						"UPDATE tbl_appinfo SET val='vs0:app/NPXS10001/eboot.bin' WHERE key='3022202214' and titleid='NPXS10001'",
+						NULL };
+
+	return sql_multiple_exec(APP_DB, queries);
+}
+
+int uninstallSelfPathMod(GameInfo *game_info) {
+	char restore_query[0x100];
+	char *queries[] = { restore_query,
 						NULL };
 
 	sprintf(restore_query, "UPDATE tbl_appinfo SET val='%s:app/%s/eboot.bin' WHERE key='3022202214' and titleid='%s'", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, game_info->titleid);
@@ -295,7 +305,7 @@ int getNextSelf(char *self_path, char *src_path) {
 }
 
 int setupSelfDump(GameInfo *game_info, int mode) {
-	char self_path[128], src_path[MAX_PATH_LENGTH];
+	char self_path[128], patch_path[128], src_path[MAX_PATH_LENGTH];
 
 	char self_mod_query[0x100];
 	char *queries[] = { self_mod_query,
@@ -305,15 +315,21 @@ int setupSelfDump(GameInfo *game_info, int mode) {
 	getNextSelf(src_path, "ux0:pspemu/Vitamin_exec");
 	debugPrintf("Get next self: %s\n", src_path);
 
-	if (mode == MODE_UPDATE) {
-		sprintf(self_path, "ux0:patch/%s/%s", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
-		// Copy executable to ux0:patch
-		copyPath(src_path, self_path);
-	} else { // mode == MODE_FULL_GAME
-		sprintf(self_path, "%s:app/%s/%s", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
-	}
+	// Self path
+	sprintf(self_path, "%s:app/%s/%s", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
 
 	debugPrintf("self_path: %s\n", self_path);
+
+	// Copy to ux0:patch/TITLEID/executable when dumping update files
+	if (mode == MODE_UPDATE) {
+		// Patch path
+		sprintf(patch_path, "ux0:patch/%s/%s", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
+
+		debugPrintf("patch_path: %s\n", patch_path);
+
+		// Copy executable to patch folder
+		copyFile(src_path, patch_path);
+	}
 
 	// Delete executable from temp directory
 	sceIoRemove(src_path);
@@ -343,6 +359,12 @@ int finishDump(GameInfo *game_info, int mode) {
 	res = uninstallAppDbMod(game_info);
 	if (res < 0)
 		goto ERROR;
+	
+	// Uninstall selfpath mod
+	res = uninstallSelfPathMod(game_info);
+	if (res < 0)
+		goto ERROR;
+
 	printf("OK\n");
 
 	sceKernelDelayThread(DELAY);
@@ -401,11 +423,19 @@ int dumpFullGame(GameInfo *game_info) {
 	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
 	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
 
-	// Install app.db modification
+	sceKernelDelayThread(DELAY);
 	printf("Installing app.db modification...");
+
+	// Uninstall selfpath mod
+	res = uninstallSelfPathMod(game_info);
+	if (res < 0)
+		goto ERROR;
+
+	// Install app.db modification
 	res = installAppDbMod();
 	if (res < 0)
 		goto ERROR_INSTALL_APPDB_MOD;
+
 	printf("OK\n");
 
 	// Inject morphine
@@ -452,6 +482,7 @@ ERROR_RENAME_SAVEDATA:
 	restoreSavedata();
 
 ERROR_INSTALL_APPDB_MOD:
+ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
 
@@ -472,11 +503,19 @@ int dumpUpdate(GameInfo *game_info) {
 	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
 	sprintf(tmp_path, "ux0:app/%s_org", game_info->titleid);
 
-	// Install app.db modification
+	sceKernelDelayThread(DELAY);
 	printf("Installing app.db modification...");
+	
+	// Uninstall selfpath mod
+	res = uninstallSelfPathMod(game_info);
+	if (res < 0)
+		goto ERROR;
+
+	// Install app.db modification
 	res = installAppDbMod();
 	if (res < 0)
 		goto ERROR_INSTALL_APPDB_MOD;
+
 	printf("OK\n");
 
 	// Inject morphine
@@ -531,6 +570,7 @@ ERROR_RENAME_SAVEDATA:
 	restoreSavedata();
 
 ERROR_INSTALL_APPDB_MOD:
+ERROR:
 	sceKernelDelayThread(DELAY);
 	printf("Error 0x%08X\n", res);
 
