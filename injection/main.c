@@ -521,8 +521,7 @@ int setupSelfDump(GameInfo *game_info, int mode) {
 	char self_path[128], src_path[MAX_PATH_LENGTH];
 
 	char *self_mod_query = malloc(0x100);
-	char *queries[] = { "DELETE FROM `tbl_uri` WHERE scheme='vitamin'",
-											self_mod_query,
+	char *queries[] = { self_mod_query,
 											NULL };
 
 	// Get next executable path in ux0:pspemu/Vitamin
