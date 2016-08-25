@@ -289,7 +289,7 @@ int ignoreHandler(char *path) {
 		return 1;
 	}
 
-	if (strstr(path, "eboot.bin") || strstr(path, "param.sfo") || strstr(path, "sce_module") || strstr(path, "clearsign")) {
+	if (strstr(path, "eboot.bin") || strstr(path, "param.sfo") || strstr(path, "sce_module") || strstr(path, "clearsign") || strstr(path, "keystone")) {
 		ignored_size += stat.st_size;
 		return 1;
 	}
@@ -380,7 +380,7 @@ int finishDump(GameInfo *game_info, int mode) {
 	res = uninstallAppDbMod(game_info);
 	if (res < 0)
 		goto ERROR;
-	
+
 	// Uninstall selfpath mod
 	res = uninstallSelfPathMod(game_info);
 	if (res < 0)
@@ -563,7 +563,7 @@ int dumpUpdate(GameInfo *game_info) {
 
 	sceKernelDelayThread(DELAY);
 	printf("Installing app.db modification...");
-	
+
 	// Uninstall selfpath mod
 	res = uninstallSelfPathMod(game_info);
 	if (res < 0)
