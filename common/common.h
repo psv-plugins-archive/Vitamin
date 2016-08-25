@@ -32,6 +32,7 @@ typedef struct {
 	char version_game[8];
 	char version_update[8];
 	uint64_t size;
+	uint64_t ignored_size;
 	int is_cartridge;
 } GameInfo;
 
@@ -42,7 +43,8 @@ enum Modes {
 
 int sceAppMgrDestroyOtherApp();
 
-void printLayout(char *info, char *title);
+void SetLayoutMargin(int y);
+int printLayout(char *info, char *title);
 
 void initPowerTickThread();
 

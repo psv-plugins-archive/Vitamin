@@ -385,9 +385,6 @@ int _start(SceSize args, void *argp) {
 	// Init stub patches
 	initStubPatches();
 
-	// Set CPU clock to 444mhz
-	scePowerSetArmClockFrequency(444);
-
 	// Load plugins
 	char path[128];
 	sprintf(path, "ux0:plugins/%s.txt", titleid);

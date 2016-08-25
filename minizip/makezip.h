@@ -19,6 +19,9 @@
 #ifndef __MAKEZIP_H__
 #define __MAKEZIP_H__
 
-int makeZip(char *zip_file, char *path, int filename_start, int append, int (* handler)(char *path));
+#define WRITEBUFFERSIZE (16 * 1024)
+#define COMPRESS_LEVEL 1
+
+int makeZip(char *zip_file, char *path, int filename_start, int append, uint64_t *value, uint64_t max, void (* SetProgress)(uint64_t value, uint64_t max), int (* handler)(char *path));
 
 #endif

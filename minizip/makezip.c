@@ -32,16 +32,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "../common/utils.h"
-#include "../common/graphics.h"
-
+#include "makezip.h"
 #include "zip.h"
 
-#define WRITEBUFFERSIZE (16 * 1024)
-
-#define MAX_PATH_LENGTH 1024
-
-#define COMPRESS_LEVEL Z_DEFAULT_COMPRESSION
+#include "../common/utils.h"
+#include "../common/graphics.h"
 
 uLong filetime(const char *filename, tm_zip *tmzip, uLong *dostime) {
 	struct stat s;
@@ -61,7 +56,7 @@ uLong filetime(const char *filename, tm_zip *tmzip, uLong *dostime) {
 	return 1;
 }
 
-int zipAddFile(zipFile zf, char *path, int filename_start, int (* handler)(char *path)) {
+int zipAddFile(zipFile zf, char *path, int filename_start, uint64_t *value, uint64_t max, void (* SetProgress)(uint64_t value, uint64_t max), int (* handler)(char *path)) {
 	int res;
 
 	// Handler
@@ -99,10 +94,14 @@ int zipAddFile(zipFile zf, char *path, int filename_start, int (* handler)(char 
 	getSizeString(size_string, stat.st_size);
 	char *p = strrchr(path, '/');
 	psvDebugScreenPrintf("Writing %s (%s)...", p + 1, size_string);
+	int x = psvDebugScreenGetX();
+	int y = psvDebugScreenGetY();
+	psvDebugScreenClearLineMargin(y + 1, DARKBLUE);
 
 	// Open file to add
 	SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
 	if (fd < 0) {
+		psvDebugScreenSetXY(x, y);
 		psvDebugScreenPrintf("Error 0x%08X\n", fd);
 		zipCloseFileInZip(zf);
 		return fd;
@@ -111,10 +110,13 @@ int zipAddFile(zipFile zf, char *path, int filename_start, int (* handler)(char 
 	// Add file to zip
 	void *buf = malloc(WRITEBUFFERSIZE);
 
+	uint64_t total = 0;
+
 	int read;
 	while ((read = sceIoRead(fd, buf, WRITEBUFFERSIZE)) > 0) {
 		int res = zipWriteInFileInZip(zf, buf, read);
 		if (res < 0) {
+			psvDebugScreenSetXY(x, y);
 			psvDebugScreenPrintf("Error 0x%08X\n", res);
 
 			free(buf);
@@ -124,9 +126,24 @@ int zipAddFile(zipFile zf, char *path, int filename_start, int (* handler)(char 
 
 			return res;
 		}
+
+		if (value)
+			(*value) += read;
+
+		if (SetProgress)
+			SetProgress(value ? *value : 0, max);
+
+		total += read;
+
+		if (stat.st_size >= (1 * 1024 * 1024)) { // Show percent for files >= 1MB
+			psvDebugScreenSetXY(x, y);
+			double progress = (double)((100.0f * (double)total) / (double)stat.st_size);
+			psvDebugScreenPrintf("%d%%", (int)progress);
+		}
 	}
 
-	psvDebugScreenPrintf("OK\n");
+	psvDebugScreenSetXY(x, y);
+	psvDebugScreenPrintf("OK  \n");
 
 	free(buf);
 
@@ -136,7 +153,7 @@ int zipAddFile(zipFile zf, char *path, int filename_start, int (* handler)(char 
 	return 0;
 }
 
-int zipAddPath(zipFile zf, char *path, int filename_start, int (* handler)(char *path)) {
+int zipAddPath(zipFile zf, char *path, int filename_start, uint64_t *value, uint64_t max, void (* SetProgress)(uint64_t value, uint64_t max), int (* handler)(char *path)) {
 	SceUID dfd = sceIoDopen(path);
 	if (dfd >= 0) {
 		int res = 0;
@@ -156,9 +173,9 @@ int zipAddPath(zipFile zf, char *path, int filename_start, int (* handler)(char 
 				int ret = 0;
 
 				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
-					ret = zipAddPath(zf, new_path, filename_start, handler);
+					ret = zipAddPath(zf, new_path, filename_start, value, max, SetProgress, handler);
 				} else {
-					ret = zipAddFile(zf, new_path, filename_start, handler);
+					ret = zipAddFile(zf, new_path, filename_start, value, max, SetProgress,handler);
 				}
 
 				free(new_path);
@@ -172,18 +189,18 @@ int zipAddPath(zipFile zf, char *path, int filename_start, int (* handler)(char 
 
 		sceIoDclose(dfd);
 	} else {
-		return zipAddFile(zf, path, filename_start, handler);
+		return zipAddFile(zf, path, filename_start, value, max, SetProgress,handler);
 	}
 
 	return 0;
 }
 
-int makeZip(char *zip_file, char *path, int filename_start, int append, int (* handler)(char *path)) {
+int makeZip(char *zip_file, char *path, int filename_start, int append, uint64_t *value, uint64_t max, void (* SetProgress)(uint64_t value, uint64_t max), int (* handler)(char *path)) {
 	zipFile zf = zipOpen64(zip_file, append ? APPEND_STATUS_ADDINZIP : APPEND_STATUS_CREATE);
 	if (zf == NULL)
 		return -1;
 
-	int res = zipAddPath(zf, path, filename_start, handler);
+	int res = zipAddPath(zf, path, filename_start, value, max, SetProgress,handler);
 
 	zipClose(zf, NULL);
 

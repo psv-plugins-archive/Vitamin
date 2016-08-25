@@ -11,6 +11,8 @@ void psvDebugScreenInit();
 void psvDebugScreenClear(int bg_color);
 
 void psvDebugScreenClearMargin(int bg_color);
+void psvDebugScreenClearLine(int line_y, int bg_color);
+void psvDebugScreenClearLineMargin(int line_y, int bg_color);
 
 // printf to the screen
 void psvDebugScreenPrintf(const char *format, ...);

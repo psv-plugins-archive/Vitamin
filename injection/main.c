@@ -51,7 +51,6 @@
 
 // TODO: add check if manual is open
 // TODO: check ms space
-// TODO: progressbar
 // TODO: more error handling
 
 int debugPrintf(char *text, ...) {
@@ -97,7 +96,7 @@ void addExecutables(char *zip_path, char *tmp_dir) {
 				char new_src_path[MAX_PATH_LENGTH];
 				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", tmp_dir, dir.d_name);
 
-				makeZip(zip_path, new_src_path, strlen("ux0:pspemu/Vitamin/"), 1, NULL);
+				makeZip(zip_path, new_src_path, strlen("ux0:pspemu/Vitamin/"), 1, NULL, 0, NULL, NULL);
 			}
 		} while (res > 0);
 
@@ -188,7 +187,7 @@ void openManualLaunchGame(GameInfo *game_info) {
 	sceKernelDelayThread(DELAY);
 	printf("\nThe application will now open the manual of your game\nin another application.\nMinimize the new application and then go back to this\ngame.\n\n");
 	psvDebugScreenSetFgColor(RED);
-	printf("DO NOT CLOSE THE NEWLY OPENED APPLICATION.\n\n");
+	printf("DO NOT CLICK OK OR CLOSE THE NEWLY OPENED APPLICATION.\n\n");
 	sceKernelDelayThread(3 * 1000 * 1000);
 
 	psvDebugScreenSetFgColor(WHITE);
@@ -274,6 +273,28 @@ int uninstallSelfPathMod(GameInfo *game_info) {
 	sprintf(restore_query, "UPDATE tbl_appinfo SET val='%s:app/%s/eboot.bin' WHERE key='3022202214' and titleid='%s'", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, game_info->titleid);
 
 	return sql_multiple_exec(APP_DB, queries);
+}
+
+static uint64_t ignored_size = 0;
+
+int ignoreHandler(char *path) {
+	SceIoStat stat;
+	memset(&stat, 0, sizeof(SceIoStat));
+	if (sceIoGetstat(path, &stat) < 0)
+		return 0;
+
+	char *ext = strrchr(path, '.');
+	if (ext && strcmp(ext, ".self") == 0) {
+		ignored_size += stat.st_size;
+		return 1;
+	}
+
+	if (strstr(path, "eboot.bin") || strstr(path, "param.sfo") || strstr(path, "sce_module") || strstr(path, "clearsign")) {
+		ignored_size += stat.st_size;
+		return 1;
+	}
+
+	return 0;
 }
 
 int getNextSelf(char *self_path, char *src_path) {
@@ -414,6 +435,26 @@ ERROR:
 	return res;
 }
 
+void checkMsSpace(GameInfo *game_info) {
+	uint64_t free_size = 0, max_size = 0;
+	sceAppMgrGetDevInfo("ux0:", &max_size, &free_size);
+	uint64_t max_dump_size = game_info->size + game_info->ignored_size;
+	if (free_size < max_dump_size) {
+		sceKernelDelayThread(DELAY);
+		char size_left[16];
+		char size_required[16];
+		getSizeString(size_left, free_size);
+		getSizeString(size_required, max_dump_size - free_size);
+
+		printf("You only have %s left on your MS.\nIn order to dump, %s more is required.\n", size_left, size_required);
+
+		sceKernelDelayThread(DELAY);
+		printf("\nPress X to exit.");
+		waitForUser();
+		sceKernelExitProcess(0);
+	}
+}
+
 int dumpFullGame(GameInfo *game_info) {
 	int res;
 	char app_path[128], patch_path[128], tmp_path[128];
@@ -422,6 +463,18 @@ int dumpFullGame(GameInfo *game_info) {
 	sprintf(app_path, "ux0:app/%s", game_info->titleid);
 	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
 	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
+
+	// Destory all other apps
+	sceAppMgrDestroyOtherApp();
+	sceKernelDelayThread(1 * 1000 * 1000);
+
+	// Get game size
+	ignored_size = 0;
+	getPathInfo(app_path, &game_info->size, NULL, NULL, ignoreHandler);
+	game_info->ignored_size = ignored_size;
+
+	// Check free ms space
+	checkMsSpace(game_info);
 
 	sceKernelDelayThread(DELAY);
 	printf("Installing app.db modification...");
@@ -442,10 +495,6 @@ int dumpFullGame(GameInfo *game_info) {
 	sceKernelDelayThread(DELAY);
 	printf("Injecting morphine...");
 
-	// Destory all other apps
-	sceAppMgrDestroyOtherApp();
-	sceKernelDelayThread(1 * 1000 * 1000);
-
 	// Backup savedata and let the application create a new savegame with its new encryption key
 	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
 	if (res < 0 && res != 0x80010002)
@@ -455,9 +504,6 @@ int dumpFullGame(GameInfo *game_info) {
 	res = sceIoRename(patch_path, tmp_path);
 	if (res < 0 && res != 0x80010002)
 		goto ERROR_RENAME_PATCH;
-
-	// Get game size
-	getPathInfo(app_path, &game_info->size, NULL, NULL);
 
 	// Inject morphine
 	res = injectMorphine(game_info, MODE_FULL_GAME);
@@ -503,6 +549,18 @@ int dumpUpdate(GameInfo *game_info) {
 	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
 	sprintf(tmp_path, "ux0:app/%s_org", game_info->titleid);
 
+	// Destory all other apps
+	sceAppMgrDestroyOtherApp();
+	sceKernelDelayThread(1 * 1000 * 1000);
+
+	// Get game size
+	ignored_size = 0;
+	getPathInfo(patch_path, &game_info->size, NULL, NULL, ignoreHandler);
+	game_info->ignored_size = ignored_size;
+
+	// Check free ms space
+	checkMsSpace(game_info);
+
 	sceKernelDelayThread(DELAY);
 	printf("Installing app.db modification...");
 	
@@ -522,10 +580,6 @@ int dumpUpdate(GameInfo *game_info) {
 	sceKernelDelayThread(DELAY);
 	printf("Injecting morphine...");
 
-	// Destory all other apps
-	sceAppMgrDestroyOtherApp();
-	sceKernelDelayThread(1 * 1000 * 1000);
-
 	// Backup savedata and let the application create a new savegame with its new encryption key
 	res = sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_org");
 	if (res < 0 && res != 0x80010002)
@@ -540,9 +594,6 @@ int dumpUpdate(GameInfo *game_info) {
 	res = sceIoRename(patch_path, app_path);
 	if (res < 0)
 		goto ERROR_RENAME_PATCH;
-
-	// Get game size
-	getPathInfo(app_path, &game_info->size, NULL, NULL);
 
 	// Inject morphine
 	res = injectMorphine(game_info, MODE_UPDATE);
@@ -617,7 +668,8 @@ int main(int argc, char *argv[]) {
 
 		setupSelfDump(&game_info, mode);
 
-		sceAppMgrDestroyOtherApp(); // Flush app.db
+		// Flush app.db
+		sceAppMgrDestroyOtherApp();
 
 		char uri[32];
 		sprintf(uri, "psgm:play?titleid=%s", titleid);

@@ -42,6 +42,7 @@
 #include "steroid.h"
 
 static char titleid[12];
+static int layout_y = 0;
 
 int debugPrintf(char *text, ...) {
 	va_list list;
@@ -62,9 +63,11 @@ int debugPrintf(char *text, ...) {
 
 int ignoreHandler(char *path) {
 	char *ext  = strrchr(path, '.');
-	if (ext != NULL && strcmp(ext, ".self") == 0 )
+	if (ext && strcmp(ext, ".self") == 0) {
 		return 1;
-	if (strstr(path, "eboot.bin") || strstr(path, "param.sfo") || strstr(path, "sce_module") || strstr(path, "keystone") || strstr(path, "clearsign")) {
+	}
+
+	if (strstr(path, "eboot.bin") || strstr(path, "param.sfo") || strstr(path, "sce_module") || strstr(path, "clearsign")) {
 		return 1;
 	}
 
@@ -74,7 +77,7 @@ int ignoreHandler(char *path) {
 void writeSteroid(char *dst_path) {
 	sceIoMkdir("ux0:pspemu/Vitamin/sce_module", 0777);
 	WriteFile("ux0:pspemu/Vitamin/sce_module/steroid.suprx", steroid, size_steroid);
-	makeZip(dst_path, "ux0:pspemu/Vitamin/sce_module/steroid.suprx", 19, 1, NULL);
+	makeZip(dst_path, "ux0:pspemu/Vitamin/sce_module/steroid.suprx", 19, 1, NULL, 0, NULL, NULL);
 }
 
 void restoreSavedata() {
@@ -99,24 +102,17 @@ void relaunchGame() {
 	sceKernelExitProcess(0);
 }
 
-void patchSfo(char *app_path, char *zip_path) {
+int patchSfo(char *app_path, char *zip_path) {
 	char param_sfo_path[128];
-	void *buffer = NULL;
 	uint32_t attribute = 0;
+	void *buffer = NULL;
 
 	// Read param.sfo
 	sprintf(param_sfo_path, "%s/sce_sys/param.sfo", app_path);
 
-	SceIoStat stat;
-	memset(&stat, 0, sizeof(SceIoStat));
-	int ret = sceIoGetstat(param_sfo_path, &stat);
-	if (ret < 0)
-		return;
-
-	buffer = malloc(stat.st_size);
-	if (!buffer)
-		return;
-	ReadFile(param_sfo_path, buffer, stat.st_size);
+	int size = allocateReadFile(param_sfo_path, &buffer);
+	if (size <= 0)
+		return size;
 
 	// Get and patch attribute
 	SfoHeader *header = (SfoHeader *)buffer;
@@ -128,15 +124,21 @@ void patchSfo(char *app_path, char *zip_path) {
 			attribute = *(int *)(buffer + header->valofs + entries[i].dataofs);
 			debugPrintf("original attribute = 0x%08X\n", attribute);
 			attribute &= 0xFF00FFFF;//FFFF;
-			*(int *)(buffer + header->valofs + entries[i].dataofs) = attribute;//0xFBFBFFFF;
+			*(uint32_t *)(buffer + header->valofs + entries[i].dataofs) = attribute;//0xFBFBFFFF;
 			break;
 		}
 	}
+
 	debugPrintf("new attribute = 0x%08X\n", attribute);
 
 	sceIoMkdir("ux0:pspemu/Vitamin/sce_sys", 0777);
-	WriteFile("ux0:pspemu/Vitamin/sce_sys/param.sfo", buffer, stat.st_size);
-	makeZip(zip_path, "ux0:pspemu/Vitamin/sce_sys/param.sfo", strlen("ux0:pspemu/Vitamin/"), 1, NULL);
+	WriteFile("ux0:pspemu/Vitamin/sce_sys/param.sfo", buffer, size);
+	makeZip(zip_path, "ux0:pspemu/Vitamin/sce_sys/param.sfo", strlen("ux0:pspemu/Vitamin/"), 1, NULL, 0, NULL, NULL);
+
+	// Free buffer
+	free(buffer);
+
+	return 0;
 }
 
 int copyExecutables(char *src_path, char *dst_path) {
@@ -189,6 +191,48 @@ int copyExecutables(char *src_path, char *dst_path) {
 	return 0;
 }
 
+static uint32_t previous_value = 0;
+static SceUInt64 cur_micros = 0, delta_micros = 0, last_micros = 0;
+static double kbs = 0;
+
+void SetProgress(uint64_t value, uint64_t max) {
+	int x = psvDebugScreenGetX();
+	int y = psvDebugScreenGetY();
+	psvDebugScreenResetMargin();
+
+	double progress = (double)((double)value / (double)max);
+	double progress_percent = (double)(100.0f * progress);
+	double progress_bar = (double)(55.0f * progress);
+
+	// KB/s
+	cur_micros = sceKernelGetProcessTimeWide();
+	if (cur_micros >= (last_micros + 1000000)) {
+		delta_micros = cur_micros - last_micros;
+		last_micros = cur_micros;
+		kbs = (double)(value - previous_value) / 1024.0f;
+		previous_value = value;
+	}
+
+	psvDebugScreenSetFgColor(CYAN);
+	psvDebugScreenSetXY(2, 29);
+	printf("Dumping...%d%% (%.2f KB/s)", (int)progress_percent, kbs);
+
+	psvDebugScreenSetFgColor(WHITE);
+	psvDebugScreenSetXY(2, 30);
+	printf("[");
+
+	int i;
+	for (i = 0; i < (int)progress_bar; i++) {
+		printf("*");
+	}
+
+	psvDebugScreenSetXY(57, 30);
+	printf("]");
+
+	SetLayoutMargin(layout_y);
+	psvDebugScreenSetXY(x, y);
+}
+
 int main(int argc, char *argv[]) {
 	char path[128], dst_path[128], app_path[128], tmp_path[128];
 
@@ -224,7 +268,7 @@ int main(int argc, char *argv[]) {
 							  game_info.name,
 							  game_info.titleid,
 							  (version[0] == '0') ? (version + 1) : version);
-	printLayout(game_info_string, mode == MODE_UPDATE ? "Dumping update files" : "Dumping full game");
+	layout_y = printLayout(game_info_string, mode == MODE_UPDATE ? "Dumping update files" : "Dumping full game");
 
 	// Dump process
 	sprintf(app_path, "%s:app/%s", game_info.is_cartridge ? "gro0" : "ux0", titleid);
@@ -233,7 +277,19 @@ int main(int argc, char *argv[]) {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_UPDATE_%s.ZIP", titleid, game_info.version_update);
 		sceIoRemove(dst_path);
-		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
+
+		uint64_t start_micros = sceKernelGetProcessTimeWide();
+
+		uint64_t value = 0;
+		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, &value, game_info.size, SetProgress, ignoreHandler);
+		SetProgress(game_info.size, game_info.size);
+		sceKernelDelayThread(1 * 1000 * 1000);
+		psvDebugScreenClearLine(29, DARKBLUE);
+		psvDebugScreenClearLine(30, DARKBLUE);
+
+		uint64_t end_micros = sceKernelGetProcessTimeWide();
+
+		debugPrintf("%fs with 0x%X and %d\n", (end_micros - start_micros) / 1000000.0f, WRITEBUFFERSIZE, COMPRESS_LEVEL);
 
 		// Write steroid module
 		writeSteroid(dst_path);
@@ -267,10 +323,19 @@ int main(int argc, char *argv[]) {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s.VPK", titleid, game_info.version_game);
 		sceIoRemove(dst_path);
-		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, ignoreHandler);
 
-		// Fake entry
-		// makeZip(dst_path, "ux0:pspemu/Vitamin/lol/", 24, 0, NULL);
+		uint64_t start_micros = sceKernelGetProcessTimeWide();
+
+		uint64_t value = 0;
+		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, &value, game_info.size, SetProgress, ignoreHandler);
+		SetProgress(game_info.size, game_info.size);
+		sceKernelDelayThread(1 * 1000 * 1000);
+		psvDebugScreenClearLine(29, DARKBLUE);
+		psvDebugScreenClearLine(30, DARKBLUE);
+
+		uint64_t end_micros = sceKernelGetProcessTimeWide();
+
+		debugPrintf("%fs with 0x%X and %d\n", (end_micros - start_micros) / 1000000.0f, WRITEBUFFERSIZE, COMPRESS_LEVEL);
 
 		// Write steroid module
 		writeSteroid(dst_path);

@@ -35,29 +35,29 @@
 #include "utils.h"
 #include "graphics.h"
 
-void *allocateReadFile(char *path) {
+int allocateReadFile(char *path, void **buffer) {
 	// Open file
 	SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
 	if (fd < 0)
-		return NULL;
+		return -1;
 
 	// Get file size
-	uint64_t off = sceIoLseek(fd, 0, SCE_SEEK_CUR);
-	uint64_t size = sceIoLseek(fd, 0, SCE_SEEK_END);
+	int off = sceIoLseek32(fd, 0, SCE_SEEK_CUR);
+	int size = sceIoLseek32(fd, 0, SCE_SEEK_END);
 	sceIoLseek(fd, off, SCE_SEEK_SET);
 
 	// Allocate buffer
-	void *buffer = malloc(size);
-	if (!buffer) {
+	*buffer = malloc(size);
+	if (!*buffer) {
 		sceIoClose(fd);
-		return NULL;
+		return -1;
 	}
 
 	// Read file
-	sceIoRead(fd, buffer, size);
+	sceIoRead(fd, *buffer, size);
 	sceIoClose(fd);
 
-	return buffer;
+	return size;
 }
 
 int ReadFile(char *file, void *buf, int size) {
@@ -217,7 +217,7 @@ int removePath(char *path) {
 	return 0;
 }
 
-int getPathInfo(char *path, uint64_t *size, uint32_t *folders, uint32_t *files) {
+int getPathInfo(char *path, uint64_t *size, uint32_t *folders, uint32_t *files, int (* handler)(char *path)) {
 	SceUID dfd = sceIoDopen(path);
 	if (dfd >= 0) {
 		int res = 0;
@@ -235,18 +235,20 @@ int getPathInfo(char *path, uint64_t *size, uint32_t *folders, uint32_t *files) 
 				snprintf(new_path, MAX_PATH_LENGTH, "%s/%s", path, dir.d_name);
 
 				if (SCE_S_ISDIR(dir.d_stat.st_mode)) {
-					int ret = getPathInfo(new_path, size, folders, files);
+					int ret = getPathInfo(new_path, size, folders, files, handler);
 					if (ret < 0) {
 						free(new_path);
 						sceIoDclose(dfd);
 						return ret;
 					}
 				} else {
-					if (size)
-						(*size) += dir.d_stat.st_size;
+					if (!handler || !handler(new_path)) {
+						if (size)
+							(*size) += dir.d_stat.st_size;
 
-					if (files)
-						(*files)++;
+						if (files)
+							(*files)++;
+					}
 				}
 
 				free(new_path);
@@ -258,19 +260,20 @@ int getPathInfo(char *path, uint64_t *size, uint32_t *folders, uint32_t *files) 
 		if (folders)
 			(*folders)++;
 	} else {
-		if (size) {
-			SceIoStat stat;
-			memset(&stat, 0, sizeof(SceIoStat));
+		SceIoStat stat;
+		memset(&stat, 0, sizeof(SceIoStat));
 
-			int res = sceIoGetstat(path, &stat);
-			if (res < 0)
-				return res;
+		int res = sceIoGetstat(path, &stat);
+		if (res < 0)
+			return res;
 
-			(*size) += stat.st_size;
+		if (!handler || !handler(path)) {
+			if (size)
+				(*size) += stat.st_size;
+
+			if (files)
+				(*files)++;
 		}
-
-		if (files)
-			(*files)++;
 	}
 
 	return 0;

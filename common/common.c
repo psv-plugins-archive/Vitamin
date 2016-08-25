@@ -27,7 +27,14 @@
 #include "common.h"
 #include "graphics.h"
 
-void printLayout(char *info, char *title) {
+void SetLayoutMargin(int y) {
+	psvDebugScreenSetLeftMargin(3);
+	psvDebugScreenSetRightMargin(57);
+	psvDebugScreenSetTopMargin(y);
+	psvDebugScreenSetBottomMargin(24);	
+}
+
+int printLayout(char *info, char *title) {
 	psvDebugScreenResetMargin();
 
 	psvDebugScreenSetLeftMargin(1);
@@ -66,10 +73,9 @@ void printLayout(char *info, char *title) {
 
 	psvDebugScreenSetXY(x, y);
 
-	psvDebugScreenSetLeftMargin(3);
-	psvDebugScreenSetRightMargin(57);
-	psvDebugScreenSetTopMargin(y);
-	psvDebugScreenSetBottomMargin(24);
+	SetLayoutMargin(y);
+
+	return y;
 }
 
 int power_tick_thread(SceSize args, void *argp) {

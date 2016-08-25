@@ -171,14 +171,26 @@ void psvDebugScreenClearMargin(int bg_color) {
 	}
 }
 
-void psvDebugScreenClearLineMargin(int bg_color) {
+void psvDebugScreenClearLine(int line_y, int bg_color) {
 	color_t *pixel = (color_t *)getVramDisplayBuffer();
 
 	int y;
-	for (y = gY; y < gY + FONT_SIZE; y++) {
+	for (y = 0; y < FONT_SIZE; y++) {
 		int x;
-		for (x = gX; x < ((g_right_margin + 1) * FONT_SIZE); x++) {
-			pixel[x + y * LINE_SIZE].rgba = bg_color;
+		for (x = 0; x < (60 * FONT_SIZE); x++) {
+			pixel[x + ((line_y * FONT_SIZE) + y) * LINE_SIZE].rgba = bg_color;
+		}
+	}
+}
+
+void psvDebugScreenClearLineMargin(int line_y, int bg_color) {
+	color_t *pixel = (color_t *)getVramDisplayBuffer();
+
+	int y;
+	for (y = 0; y < FONT_SIZE; y++) {
+		int x;
+		for (x = (g_left_margin * FONT_SIZE); x < ((g_right_margin + 1) * FONT_SIZE); x++) {
+			pixel[x + ((line_y * FONT_SIZE) + y) * LINE_SIZE].rgba = bg_color;
 		}
 	}
 }
@@ -194,17 +206,17 @@ static void printTextScreen(const char * text)
 		if (gX > (g_right_margin * FONT_SIZE)) {
 			gY += FONT_SIZE;
 			gX = g_left_margin * FONT_SIZE;
-			psvDebugScreenClearLineMargin(g_bg_color);
+			psvDebugScreenClearLineMargin(gY / FONT_SIZE, g_bg_color);
 		}
 		if (gY > (g_bottom_margin * FONT_SIZE)) {
 			gY = g_top_margin * FONT_SIZE;
-			psvDebugScreenClearLineMargin(g_bg_color);
+			psvDebugScreenClearLineMargin(gY / FONT_SIZE, g_bg_color);
 		}
 		char ch = text[c];
 		if (ch == '\n') {
 			gX = g_left_margin * FONT_SIZE;
 			gY += FONT_SIZE;
-			psvDebugScreenClearLineMargin(g_bg_color);
+			psvDebugScreenClearLineMargin(gY / FONT_SIZE, g_bg_color);
 			continue;
 		} else if (ch == '\r') {
 			gX = g_left_margin * FONT_SIZE;

@@ -53,8 +53,7 @@ int addGames(char *app_path, int is_cartridge, int count, GameInfo *game_infos, 
 
 					// Read app param.sfo
 					sprintf(path, "%s/%s/sce_sys/param.sfo", app_path, dir.d_name);
-					buffer = allocateReadFile(path);
-					if (!buffer)
+					if (allocateReadFile(path, &buffer) <= 0)
 						continue;
 
 					// Clear
@@ -77,12 +76,13 @@ int addGames(char *app_path, int is_cartridge, int count, GameInfo *game_infos, 
 
 					// Free buffer
 					free(buffer);
+					buffer = NULL;
 
 					// Read patch param.sfo
 					if (!is_cartridge) {
 						sprintf(path, "ux0:patch/%s/sce_sys/param.sfo", dir.d_name);
-						buffer = allocateReadFile(path);
-						if (buffer) {
+
+						if (allocateReadFile(path, &buffer) > 0) {
 							// Get version
 							getSfoString(buffer, "APP_VER", game_infos[count].version_update, 8);
 
@@ -91,6 +91,7 @@ int addGames(char *app_path, int is_cartridge, int count, GameInfo *game_infos, 
 
 							// Free buffer
 							free(buffer);
+							buffer = NULL;
 						}
 					}
 
