@@ -16,6 +16,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <psp2/appmgr.h>
 #include <psp2/power.h>
 #include <psp2/kernel/processmgr.h>
 
@@ -37,20 +38,20 @@ void SetLayoutMargin(int y) {
 int printLayout(char *info, char *title) {
 	psvDebugScreenResetMargin();
 
+	// Title
 	psvDebugScreenSetLeftMargin(1);
 	psvDebugScreenSetXY(0, 2);
-
-	// Title
 	psvDebugScreenSetFgColor(CYAN);
-	printf("Vitamin by Team FreeK");
-	psvDebugScreenSetFgColor(WHITE);
+	printf("Team FreeK's Vitamin v%d.%d", VITAMIN_VERSION_MAJOR, VITAMIN_VERSION_MINOR);
 
 	// Battery
 	char percent[8];
 	sprintf(percent, "%d%%", scePowerGetBatteryLifePercent());
 	psvDebugScreenSetXY(59 - strlen(percent), psvDebugScreenGetY());
+	psvDebugScreenSetFgColor(DARKGREEN);
 	printf("%s\n", percent);
 
+	psvDebugScreenSetFgColor(WHITE);
 	printf("----------------------------------------------------------\n\n");
 
 	// Info
@@ -92,4 +93,17 @@ void initPowerTickThread() {
 	SceUID thid = sceKernelCreateThread("power_tick_thread", power_tick_thread, 0x10000100, 0x40000, 0, 0, NULL);
 	if (thid >= 0)
 		sceKernelStartThread(thid, 0, NULL);
+}
+
+int launchAppByUriExit(char *titleid) {
+	char uri[32];
+	sprintf(uri, "psgm:play?titleid=%s", titleid);
+
+	sceKernelDelayThread(5000);
+	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
+	sceKernelDelayThread(5000);
+	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
+	sceKernelExitProcess(0);
+
+	return 0;
 }

@@ -35,6 +35,7 @@ void psvDebugScreenSetRightMargin(int right_margin);
 void psvDebugScreenSetTopMargin(int top_margin);
 void psvDebugScreenSetBottomMargin(int bottom_margin);
 
+#define DARKGREEN 0x00007F00
 #define DARKBLUE 0x003F1F00
 #define YELLOW 0x007FFFFF
 #define WHITE 0x00FFFFFF
@@ -42,8 +43,10 @@ void psvDebugScreenSetBottomMargin(int bottom_margin);
 #define GREEN 0x007FFF00
 #define RED 0x000000FF
 
-#define BLUE 0x00FF7F00
+#define BLUE 0x00FF3F1F
 
 #define BLACK 0x00000000
 
 #define GRAY 0x007F7F7F
+
+#define PURPLE 0x009F009F

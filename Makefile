@@ -5,8 +5,8 @@ send:
 	make -C injection clean
 
 clean:
-	-rm "morphine/steroid.h"
 	-rm "morphine/lsd.h"
+	-rm "injection/steroid.h"
 	-rm "injection/eboot_bin.h"
 	make -C injection clean
 	make -C morphine clean
@@ -16,7 +16,7 @@ clean:
 _steroid:
 	make -C steroid clean
 	make -C steroid
-	bin2c steroid/steroid.suprx morphine/steroid.h steroid
+	bin2c steroid/steroid.suprx injection/steroid.h steroid
 	make -C steroid clean
 
 _lsd:

@@ -50,7 +50,7 @@ int debugPrintf(char *text, ...) {
 int blit_thread(SceSize args, void *argp) {
 	while (1) {
 		blit_setup();
-		blit_set_color(0x00FF00FF, 0x00000000);
+		blit_set_color(0x00FFFFFF, 0x00007F00);
 		blit_string(100, 100, "VITAMIN IN-GAME PLUGIN HELLO WORLD");
 
 		sceDisplayWaitVblankStart();

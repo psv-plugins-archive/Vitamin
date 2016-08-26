@@ -22,6 +22,7 @@
 #include <psp2/power.h>
 
 #define VITAMIN_VERSION_MAJOR 1
+#define VITAMIN_VERSION_MINOR 0
 
 #define printf psvDebugScreenPrintf
 
@@ -47,5 +48,7 @@ void SetLayoutMargin(int y);
 int printLayout(char *info, char *title);
 
 void initPowerTickThread();
+
+int launchAppByUriExit(char *titleid);
 
 #endif

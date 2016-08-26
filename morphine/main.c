@@ -39,7 +39,6 @@
 #include "../minizip/makezip.h"
 
 #include "lsd.h"
-#include "steroid.h"
 
 static char titleid[12];
 static int layout_y = 0;
@@ -74,12 +73,6 @@ int ignoreHandler(char *path) {
 	return 0;
 }
 
-void writeSteroid(char *dst_path) {
-	sceIoMkdir("ux0:pspemu/Vitamin/sce_module", 0777);
-	WriteFile("ux0:pspemu/Vitamin/sce_module/steroid.suprx", steroid, size_steroid);
-	makeZip(dst_path, "ux0:pspemu/Vitamin/sce_module/steroid.suprx", 19, 1, NULL, 0, NULL, NULL);
-}
-
 void restoreSavedata() {
 	removePath("ux0:user/00/savedata_old");
 	if (sceIoRename("ux0:user/00/savedata", "ux0:user/00/savedata_old") >= 0) {
@@ -94,12 +87,7 @@ void relaunchGame() {
 	WriteFile("ux0:pspemu/Vitamin/relaunch.bin", titleid, strlen(titleid) + 1);
 
 	// Launch Vitamin app to relaunch game
-	// TODO: make stable. sometimes this fails...
-	sceKernelDelayThread(1 * 1000 * 1000);
-	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
-	sceKernelDelayThread(1000); // Maybe this will make it stable
-	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
-	sceKernelExitProcess(0);
+	launchAppByUriExit("VITAMIN00");
 }
 
 int patchSfo(char *app_path, char *zip_path) {
@@ -133,7 +121,6 @@ int patchSfo(char *app_path, char *zip_path) {
 
 	sceIoMkdir("ux0:pspemu/Vitamin/sce_sys", 0777);
 	WriteFile("ux0:pspemu/Vitamin/sce_sys/param.sfo", buffer, size);
-	makeZip(zip_path, "ux0:pspemu/Vitamin/sce_sys/param.sfo", strlen("ux0:pspemu/Vitamin/"), 1, NULL, 0, NULL, NULL);
 
 	// Free buffer
 	free(buffer);
@@ -202,7 +189,7 @@ void SetProgress(uint64_t value, uint64_t max) {
 
 	double progress = (double)((double)value / (double)max);
 	double progress_percent = (double)(100.0f * progress);
-	double progress_bar = (double)(55.0f * progress);
+	double progress_bar = (double)(51.0f * progress);
 
 	// KB/s
 	cur_micros = sceKernelGetProcessTimeWide();
@@ -213,12 +200,12 @@ void SetProgress(uint64_t value, uint64_t max) {
 		previous_value = value;
 	}
 
-	psvDebugScreenSetFgColor(CYAN);
+	psvDebugScreenSetFgColor(PURPLE);
 	psvDebugScreenSetXY(2, 29);
-	printf("Dumping...%d%% (%.2f KB/s)", (int)progress_percent, kbs);
+	printf("> Dumping...%d%% (%.2f KB/s)", (int)progress_percent, kbs);
 
 	psvDebugScreenSetFgColor(WHITE);
-	psvDebugScreenSetXY(2, 30);
+	psvDebugScreenSetXY(4, 30);
 	printf("[");
 
 	int i;
@@ -226,7 +213,7 @@ void SetProgress(uint64_t value, uint64_t max) {
 		printf("*");
 	}
 
-	psvDebugScreenSetXY(57, 30);
+	psvDebugScreenSetXY(55, 30);
 	printf("]");
 
 	SetLayoutMargin(layout_y);
@@ -272,27 +259,19 @@ int main(int argc, char *argv[]) {
 
 	// Dump process
 	sprintf(app_path, "%s:app/%s", game_info.is_cartridge ? "gro0" : "ux0", titleid);
+	// ux0:app/ABCD12345
 
 	if (mode == MODE_UPDATE) {
 		// Dump decrypted files
 		sprintf(dst_path, "ux0:Vitamin/%s_UPDATE_%s.ZIP", titleid, game_info.version_update);
 		sceIoRemove(dst_path);
 
-		uint64_t start_micros = sceKernelGetProcessTimeWide();
-
 		uint64_t value = 0;
-		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, &value, game_info.size, SetProgress, ignoreHandler);
+		makeZip(dst_path, app_path, game_info.is_cartridge ? 19 : 18, 0, &value, game_info.size, SetProgress, ignoreHandler);
 		SetProgress(game_info.size, game_info.size);
 		sceKernelDelayThread(1 * 1000 * 1000);
 		psvDebugScreenClearLine(29, DARKBLUE);
 		psvDebugScreenClearLine(30, DARKBLUE);
-
-		uint64_t end_micros = sceKernelGetProcessTimeWide();
-
-		debugPrintf("%fs with 0x%X and %d\n", (end_micros - start_micros) / 1000000.0f, WRITEBUFFERSIZE, COMPRESS_LEVEL);
-
-		// Write steroid module
-		writeSteroid(dst_path);
 
 		// Write patched SFO
 		patchSfo(app_path, dst_path);
@@ -324,21 +303,12 @@ int main(int argc, char *argv[]) {
 		sprintf(dst_path, "ux0:Vitamin/%s_FULLGAME_%s.VPK", titleid, game_info.version_game);
 		sceIoRemove(dst_path);
 
-		uint64_t start_micros = sceKernelGetProcessTimeWide();
-
 		uint64_t value = 0;
-		makeZip(dst_path, app_path, (strstr(app_path, game_info.titleid) - app_path) + strlen(game_info.titleid) + 1, 0, &value, game_info.size, SetProgress, ignoreHandler);
+		makeZip(dst_path, app_path, game_info.is_cartridge ? 19 : 18, 0, &value, game_info.size, SetProgress, ignoreHandler);
 		SetProgress(game_info.size, game_info.size);
 		sceKernelDelayThread(1 * 1000 * 1000);
 		psvDebugScreenClearLine(29, DARKBLUE);
 		psvDebugScreenClearLine(30, DARKBLUE);
-
-		uint64_t end_micros = sceKernelGetProcessTimeWide();
-
-		debugPrintf("%fs with 0x%X and %d\n", (end_micros - start_micros) / 1000000.0f, WRITEBUFFERSIZE, COMPRESS_LEVEL);
-
-		// Write steroid module
-		writeSteroid(dst_path);
 
 		// Write patched SFO
 		patchSfo(app_path, dst_path);
@@ -364,6 +334,7 @@ int main(int argc, char *argv[]) {
 	sprintf(path, "ux0:patch/%s/sce_module/libc.suprx", titleid);
 	WriteFile(path, lsd, size_lsd);
 
+	// Relaunch game
 	relaunchGame();
 
 	return 0;

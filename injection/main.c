@@ -42,6 +42,7 @@
 
 #include "../minizip/makezip.h"
 
+#include "steroid.h"
 #include "eboot_bin.h"
 #include "param_sfo.h"
 
@@ -76,31 +77,6 @@ void restoreSavedata() {
 		if (sceIoRename("ux0:user/00/savedata_org", "ux0:user/00/savedata") < 0) {
 			sceIoRename("ux0:user/00/savedata_old", "ux0:user/00/savedata");
 		}
-	}
-}
-
-void addExecutables(char *zip_path, char *tmp_dir) {
-	SceUID dfd = sceIoDopen(tmp_dir);
-	if (dfd >= 0) {
-		int res = 0;
-
-		do {
-			SceIoDirent dir;
-			memset(&dir, 0, sizeof(SceIoDirent));
-
-			res = sceIoDread(dfd, &dir);
-			if (res > 0) {
-				if (strcmp(dir.d_name, ".") == 0 || strcmp(dir.d_name, "..") == 0)
-					continue;
-
-				char new_src_path[MAX_PATH_LENGTH];
-				snprintf(new_src_path, MAX_PATH_LENGTH, "%s/%s", tmp_dir, dir.d_name);
-
-				makeZip(zip_path, new_src_path, strlen("ux0:pspemu/Vitamin/"), 1, NULL, 0, NULL, NULL);
-			}
-		} while (res > 0);
-
-		sceIoDclose(dfd);
 	}
 }
 
@@ -206,10 +182,7 @@ void openManualLaunchGame(GameInfo *game_info) {
 	sceKernelDelayThread(DELAY);
 
 	// Launch game
-	sprintf(uri, "psgm:play?titleid=%s", game_info->titleid);
-	sceKernelDelayThread(1 * 1000 * 1000);
-	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
-	sceKernelExitProcess(0);
+	launchAppByUriExit(game_info->titleid);
 }
 
 int sql_simple_exec(sqlite3 *db, const char *sql) {
@@ -364,11 +337,14 @@ int finishDump(GameInfo *game_info, int mode) {
 	int res;
 	char path[128], patch_path[128], tmp_path[128];
 
-	// Add converted eboot.bin
+	// Add converted exectuables and extras to zip
+	sceIoMkdir("ux0:pspemu/Vitamin/sce_module", 0777);
+	WriteFile("ux0:pspemu/Vitamin/sce_module/steroid.suprx", steroid, size_steroid);
+
 	sprintf(path, "ux0:Vitamin/%s%s%s%s", game_info->titleid, mode == MODE_UPDATE ? "_UPDATE_" : "_FULLGAME_",
 	                                    mode == MODE_UPDATE ? game_info->version_update : game_info->version_game,
 										mode == MODE_UPDATE ? ".ZIP" : ".VPK");
-	addExecutables(path, "ux0:pspemu/Vitamin");
+	makeZip(path, "ux0:pspemu/Vitamin", strlen("ux0:pspemu/Vitamin") + 1, 1, NULL, 0, NULL, NULL);
 
 	// Remove Vitamin path in pspemu
 	removePath("ux0:pspemu/Vitamin");
@@ -671,11 +647,8 @@ int main(int argc, char *argv[]) {
 		// Flush app.db
 		sceAppMgrDestroyOtherApp();
 
-		char uri[32];
-		sprintf(uri, "psgm:play?titleid=%s", titleid);
-		sceKernelDelayThread(1 * 1000 * 1000);
-		sceAppMgrLaunchAppByUri(0xFFFFF, uri);
-		sceKernelExitProcess(0);
+		// Launch game
+		launchAppByUriExit(game_info.titleid);
 	}
 
 	// Finish dump
@@ -767,7 +740,7 @@ MAIN_MENU:
 	psvDebugScreenResetMargin();
 	psvDebugScreenSetLeftMargin(2);
 	psvDebugScreenSetXY(0, 29);
-	psvDebugScreenSetFgColor(CYAN);
+	psvDebugScreenSetFgColor(PURPLE);
 	printf("> Back...\n");
 	sceKernelDelayThread(DELAY);
 	goto MAIN_MENU;

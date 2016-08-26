@@ -579,9 +579,7 @@ int main(int argc, char *argv[]) {
 	WriteFile(path, titleid, strlen(titleid) + 1);
 
 	// Launch Vitamin app to relaunch/finish
-	sceKernelDelayThread(1 * 1000 * 1000);
-	sceAppMgrLaunchAppByUri(0xFFFFF, "psgm:play?titleid=VITAMIN00");
-	sceKernelExitProcess(0);
+	launchAppByUriExit("VITAMIN00");
 
 	return 0;
 }
