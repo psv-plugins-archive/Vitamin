@@ -67,7 +67,7 @@ int ignoreHandler(char *path) {
 		return 1;
 	}
 
-	if (strstr(path, "eboot.bin") || strstr(path, "param.sfo") || strstr(path, "sce_module") || strstr(path, "keystone")) {
+	if (strstr(path, "eboot.bin") || strstr(path, "param.sfo") || strstr(path, "sce_module") || strstr(path, "clearsign") || strstr(path, "keystone")) {
 		return 1;
 	}
 

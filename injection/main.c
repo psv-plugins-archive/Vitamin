@@ -460,7 +460,7 @@ int dumpFullGame(GameInfo *game_info) {
 	char app_path[128], patch_path[128], tmp_path[128];
 
 	// App path, patch path and temp path
-	sprintf(app_path, "ux0:app/%s", game_info->titleid);
+	sprintf(app_path, "%s:app/%s", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid);
 	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
 	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
 
