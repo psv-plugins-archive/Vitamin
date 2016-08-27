@@ -362,7 +362,8 @@ void loadPlugins(char *path) {
 
 			if (res > 0) {
 				if (activated) {
-					sceKernelLoadStartModule(plugin, 0, NULL, 0, NULL, NULL);
+					SceUID mod = sceKernelLoadStartModule(plugin, 0, NULL, 0, NULL, NULL);
+					debugPrintf("sceKernelLoadStartModule %s: 0x%08X\n", plugin, mod);
 				}
 
 				size -= res;

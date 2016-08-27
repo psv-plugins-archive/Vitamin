@@ -111,8 +111,8 @@ int patchSfo(char *app_path, char *zip_path) {
 		if (strcmp(buffer + header->keyofs + entries[i].nameofs, "ATTRIBUTE") == 0) {
 			attribute = *(int *)(buffer + header->valofs + entries[i].dataofs);
 			debugPrintf("original attribute = 0x%08X\n", attribute);
-			attribute &= 0xFF00FFFF;//FFFF;
-			*(uint32_t *)(buffer + header->valofs + entries[i].dataofs) = attribute;//0xFBFBFFFF;
+			attribute &= 0xFFFFFBFB;
+			*(uint32_t *)(buffer + header->valofs + entries[i].dataofs) = attribute;
 			break;
 		}
 	}
