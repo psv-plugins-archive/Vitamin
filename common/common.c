@@ -32,7 +32,7 @@ void SetLayoutMargin(int y) {
 	psvDebugScreenSetLeftMargin(3);
 	psvDebugScreenSetRightMargin(57);
 	psvDebugScreenSetTopMargin(y);
-	psvDebugScreenSetBottomMargin(24);	
+	psvDebugScreenSetBottomMargin(24);
 }
 
 int printLayout(char *info, char *title) {
@@ -99,10 +99,11 @@ int launchAppByUriExit(char *titleid) {
 	char uri[32];
 	sprintf(uri, "psgm:play?titleid=%s", titleid);
 
-	sceKernelDelayThread(5000);
-	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
-	sceKernelDelayThread(5000);
-	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
+	do {
+		sceKernelDelayThread(5000);
+		sceAppMgrLaunchAppByUri(0xFFFFF, uri);
+	} while (!sceAppMgrIsOtherAppPresent());
+
 	sceKernelExitProcess(0);
 
 	return 0;
