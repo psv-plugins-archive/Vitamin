@@ -1,6 +1,6 @@
 /*
 	Vitamin
-	Copyright (C) 2016, Team FreeK
+	Copyright (C) 2016, Team FreeK (TheFloW, Major Tom, mr. gas)
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by

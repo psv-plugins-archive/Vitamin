@@ -1,6 +1,6 @@
 /*
 	Vitamin
-	Copyright (C) 2016, Team FreeK
+	Copyright (C) 2016, Team FreeK (TheFloW, Major Tom, mr. gas)
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -43,6 +43,8 @@
 static char titleid[12];
 static int layout_y = 0;
 
+#ifdef DEBUG
+
 int debugPrintf(char *text, ...) {
 	va_list list;
 	char string[512];
@@ -59,6 +61,8 @@ int debugPrintf(char *text, ...) {
 
 	return 0;
 }
+
+#endif
 
 int ignoreHandler(char *path) {
 	char *ext  = strrchr(path, '.');
@@ -110,14 +114,11 @@ int patchSfo(char *app_path, char *zip_path) {
 	for (i = 0; i < header->count; i++) {
 		if (strcmp(buffer + header->keyofs + entries[i].nameofs, "ATTRIBUTE") == 0) {
 			attribute = *(int *)(buffer + header->valofs + entries[i].dataofs);
-			debugPrintf("original attribute = 0x%08X\n", attribute);
 			attribute &= 0xFFFFFBFB;
 			*(uint32_t *)(buffer + header->valofs + entries[i].dataofs) = attribute;
 			break;
 		}
 	}
-
-	debugPrintf("new attribute = 0x%08X\n", attribute);
 
 	sceIoMkdir("ux0:pspemu/Vitamin/sce_sys", 0777);
 	WriteFile("ux0:pspemu/Vitamin/sce_sys/param.sfo", buffer, size);
@@ -160,7 +161,6 @@ int copyExecutables(char *src_path, char *dst_path) {
 				snprintf(new_dst_path, MAX_PATH_LENGTH, "%s/%s", dst_path, dir.d_name);
 
 				int ret = copyFile(new_src_path, new_dst_path);
-				debugPrintf("Copy %s to %s\n", new_src_path, new_dst_path);
 
 				free(new_dst_path);
 				free(new_src_path);

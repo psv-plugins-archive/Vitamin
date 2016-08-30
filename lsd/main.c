@@ -1,6 +1,6 @@
 /*
 	Vitamin
-	Copyright (C) 2016, Team FreeK
+	Copyright (C) 2016, Team FreeK (TheFloW, Major Tom, mr. gas)
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -51,6 +51,8 @@ static char dump_path[128];
 static char pspemu_path[16];
 static char titleid[12];
 
+#ifdef DEBUG
+
 int debugPrintf(char *text, ...) {
 	va_list list;
 	char string[512];
@@ -69,6 +71,8 @@ int debugPrintf(char *text, ...) {
 
 	return 0;
 }
+
+#endif
 
 typedef struct {
 	char *path;
@@ -128,7 +132,7 @@ int manipulateSelf(SelfArguments *args) {
 
 	// Available text space
 	uint32_t available_text_space = args->data_addr - args->text_addr - args->text_size;
-	debugPrintf("Available text space for payload: 0x%08X\n", available_text_space);
+	// debugPrintf("Available text space for payload: 0x%08X\n", available_text_space);
 
 	// Check if there is space for the payload
 	if (payload_size > available_text_space) {
@@ -167,7 +171,7 @@ int manipulateSelf(SelfArguments *args) {
 
 	// Use __sce_aeabi_idiv0 as placeholder stub
 	uint32_t placeholder_stub = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, "SceLibKernel", 0x4373B548);
-	debugPrintf("placeholder_stub: 0x%08X\n", placeholder_stub);
+	// debugPrintf("placeholder_stub: 0x%08X\n", placeholder_stub);
 
 	// Hijack sceFiosInitialize
 	hijackStub(args, placeholder_stub, "SceFios2", 0x774C2C05, 0);
@@ -181,7 +185,7 @@ int manipulateSelf(SelfArguments *args) {
 	// Add payload
 	if (args->add_payload) {
 		uint32_t hijack_stub = findModuleImport((SceModuleInfo *)(args->text_addr + args->sce_module_info_offset), args->text_addr, "SceLibKernel", 0xFB235848);
-		debugPrintf("hijack_stub: 0x%08X\n", hijack_stub);
+		// debugPrintf("hijack_stub: 0x%08X\n", hijack_stub);
 		if (hijack_stub) {
 			// Hijack __sce_aeabi_ldiv0 to sceKernelLoadStartModule
 			int i;
@@ -198,7 +202,7 @@ int manipulateSelf(SelfArguments *args) {
 			// Get original module_start
 			uint32_t module_start_ori = *(uint32_t *)(args->text_buf + args->sce_module_info_offset + 0x44);
 
-			debugPrintf("module_start_ori: 0x%08X\n", module_start_ori);
+			// debugPrintf("module_start_ori: 0x%08X\n", module_start_ori);
 
 			// module_start redirection #1
 			*(uint32_t *)(args->text_buf + args->sce_module_info_offset + 0x44) = args->payload_addr;
@@ -269,7 +273,7 @@ int writeSelf(SelfArguments *args) {
 	// App info
 	SCE_appinfo appinfo;
 	memset(&appinfo, 0, sizeof(SCE_appinfo));
-	appinfo.authid = 0x2F00000000000001ULL;
+	appinfo.authid = 0x2F00000000000002ULL; // 0x2F00000000000001ULL
 	appinfo.vendor_id = 0;
 	appinfo.self_type = 8;
 	appinfo.version = 0x1000000000000;
@@ -443,7 +447,7 @@ int dumpSelf(char *path, int flags, int add_payload) {
 	args.data_addr = (uint32_t)info.segments[1].vaddr;
 	args.data_size = (uint32_t)info.segments[1].memsz;
 	args.sce_module_info_offset = ehdr.e_entry;
-
+/*
 	debugPrintf("titleid: %s\n", titleid);
 	debugPrintf("path: %s\n", args.path);
 	debugPrintf("text_addr: 0x%08X\n", args.text_addr);
@@ -451,7 +455,7 @@ int dumpSelf(char *path, int flags, int add_payload) {
 	debugPrintf("data_addr: 0x%08X\n", args.data_addr);
 	debugPrintf("data_size: 0x%08X\n", args.data_size);
 	debugPrintf("sce_module_info_offset: 0x%08X\n", args.sce_module_info_offset);
-/*
+
 	// DEBUG ONLY: dump text and addr separately
 	char string[128];
 
@@ -504,7 +508,7 @@ int dumpExecutable() {
 	if (res < 0)
 		return res;
 
-	debugPrintf("executable %s at %s\n", info.module_name, info.path);
+	// debugPrintf("executable %s at %s\n", info.module_name, info.path);
 	char *p = strrchr(info.path, '/');
 	if (!p)
 		return -1;

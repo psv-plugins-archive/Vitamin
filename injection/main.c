@@ -1,6 +1,6 @@
 /*
 	Vitamin
-	Copyright (C) 2016, Team FreeK
+	Copyright (C) 2016, Team FreeK (TheFloW, Major Tom, mr. gas)
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -50,9 +50,7 @@
 
 #define DELAY 700 * 1000
 
-// TODO: add check if manual is open
-// TODO: check ms space
-// TODO: more error handling
+#ifdef DEBUG
 
 int debugPrintf(char *text, ...) {
 	va_list list;
@@ -70,6 +68,8 @@ int debugPrintf(char *text, ...) {
 
 	return 0;
 }
+
+#endif
 
 void restoreSavedata() {
 	removePath("ux0:user/00/savedata_old");
@@ -307,19 +307,14 @@ int setupSelfDump(GameInfo *game_info, int mode) {
 
 	// Get next executable path in ux0:pspemu/Vitamin
 	getNextSelf(src_path, "ux0:pspemu/Vitamin_exec");
-	debugPrintf("Get next self: %s\n", src_path);
 
 	// Self path
 	sprintf(self_path, "%s:app/%s/%s", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
-
-	debugPrintf("self_path: %s\n", self_path);
 
 	// Copy to ux0:patch/TITLEID/executable when dumping update files
 	if (mode == MODE_UPDATE) {
 		// Patch path
 		sprintf(patch_path, "ux0:patch/%s/%s", game_info->titleid, (char *)(src_path + strlen("ux0:pspemu/Vitamin_exec/")));
-
-		debugPrintf("patch_path: %s\n", patch_path);
 
 		// Copy executable to patch folder
 		copyFile(src_path, patch_path);

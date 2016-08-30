@@ -122,16 +122,18 @@ int blit_string(int sx,int sy,const char *msg)
 					c2 = c2 & 0x0000ff00;
 					c1 = ((c1*alpha)>>8)&0x00ff00ff;
 					c2 = ((c2*alpha)>>8)&0x0000ff00;
-					vram32[offset] = (col&0xffffff) + c1 + c2;
-					vram32[offset + 1] = (col&0xffffff) + c1 + c2;
-					vram32[offset + bufferwidth] = (col&0xffffff) + c1 + c2;
-					vram32[offset + bufferwidth + 1] = (col&0xffffff) + c1 + c2;
+					uint32_t color = (col&0xffffff) + c1 + c2;
+					vram32[offset] = color;
+					vram32[offset + 1] = color;
+					vram32[offset + bufferwidth] = color;
+					vram32[offset + bufferwidth + 1] = color;
 				}
 #else
-				vram32[offset] = (font & 0x80) ? fg_col : bg_col;
-				vram32[offset + 1] = (font & 0x80) ? fg_col : bg_col;
-				vram32[offset + bufferwidth] = (font & 0x80) ? fg_col : bg_col;
-				vram32[offset + bufferwidth + 1] = (font & 0x80) ? fg_col : bg_col;
+				uint32_t color = (font & 0x80) ? fg_col : bg_col;
+				vram32[offset] = color;
+				vram32[offset + 1] = color;
+				vram32[offset + bufferwidth] = color;
+				vram32[offset + bufferwidth + 1] = color;
 #endif
 				font <<= 1;
 				offset+=2;
@@ -145,4 +147,16 @@ int blit_string_ctr(int sy,const char *msg)
 {
 	int sx = 960/2-strlen(msg)*(16/2);
 	return blit_string(sx,sy,msg);
+}
+
+int blit_stringf(int sx, int sy, const char *msg, ...)
+{
+	va_list list;
+	char string[512];
+
+	va_start(list, msg);
+	vsprintf(string, msg, list);
+	va_end(list);
+
+	return blit_string(sx, sy, string);
 }

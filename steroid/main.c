@@ -1,6 +1,6 @@
 /*
 	Vitamin
-	Copyright (C) 2016, Team FreeK
+	Copyright (C) 2016, Team FreeK (TheFloW, Major Tom, mr. gas)
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -35,6 +35,8 @@
 
 #include "../common/steroid_param.h"
 
+#ifdef DEBUG
+
 int debugPrintf(char *text, ...) {
 	va_list list;
 	char string[512];
@@ -52,9 +54,11 @@ int debugPrintf(char *text, ...) {
 	return 0;
 }
 
+#endif
+
 int sceFiosInitializePatched(void *param) {
 	uint16_t size = (*(uint16_t *)param & 0xFFFE) >> 1;
-	debugPrintf("sceFiosInitialize original size: 0x%08X\n", size);
+	// debugPrintf("sceFiosInitialize original size: 0x%08X\n", size);
 
 	SceFiosParams74 param74;
 
@@ -159,10 +163,6 @@ int sceFiosInitializePatched(void *param) {
 	}
 
 	/*
-		TODO: research threadPriority, threadAffinity, threadStackSize
-	*/
-
-	/*
 		Tests
 	*/
 
@@ -190,10 +190,7 @@ int sceFiosInitializePatched(void *param) {
 	param74.threadAffinity[0] = 0;
 	param74.threadAffinity[1] = 0;
 	param74.threadAffinity[2] = 0;
-
-	// 0x58 to 0x74 working
-	// 0x5C to 0x74 results 0 but crashes in batman
-		
+/*
 	debugPrintf("param.initialized: 0x%08X\n", param74.initialized);
 	debugPrintf("param.paramsSize: 0x%08X\n", param74.paramsSize);
 	debugPrintf("param.pathMax: 0x%08X\n", param74.pathMax);
@@ -228,10 +225,10 @@ int sceFiosInitializePatched(void *param) {
 	debugPrintf("param.threadStackSize[0]: 0x%08X\n", param74.threadStackSize[0]);
 	debugPrintf("param.threadStackSize[1]: 0x%08X\n", param74.threadStackSize[1]);
 	debugPrintf("param.threadStackSize[2]: 0x%08X\n", param74.threadStackSize[2]);
-
+*/
 	int res = sceFiosInitialize(&param74);
 
-	debugPrintf("%s: 0x%08X\n", __FUNCTION__, res);
+	// debugPrintf("%s: 0x%08X\n", __FUNCTION__, res);
 
 	return res;
 }
@@ -363,7 +360,7 @@ void loadPlugins(char *path) {
 			if (res > 0) {
 				if (activated) {
 					SceUID mod = sceKernelLoadStartModule(plugin, 0, NULL, 0, NULL, NULL);
-					debugPrintf("sceKernelLoadStartModule %s: 0x%08X\n", plugin, mod);
+					// debugPrintf("Load start module %s resulted in 0x%08X.\n", plugin, mod);
 				}
 
 				size -= res;
@@ -381,7 +378,7 @@ int _start(SceSize args, void *argp) {
 	memset(titleid, 0, sizeof(titleid));
 	sceAppMgrAppParamGetString(sceKernelGetProcessId(), SCE_APPMGR_APP_PARAM_TITLE_ID, titleid, sizeof(titleid));
 
-	debugPrintf("Steroid module loaded with %s\n", titleid);
+	// debugPrintf("Steroid module loaded with %s\n", titleid);
 
 	// Init stub patches
 	initStubPatches();

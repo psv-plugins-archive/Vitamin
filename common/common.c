@@ -1,6 +1,6 @@
 /*
 	Vitamin
-	Copyright (C) 2016, Team FreeK
+	Copyright (C) 2016, Team FreeK (TheFloW, Major Tom, mr. gas)
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ int printLayout(char *info, char *title) {
 	psvDebugScreenSetLeftMargin(1);
 	psvDebugScreenSetXY(0, 2);
 	psvDebugScreenSetFgColor(CYAN);
-	printf("Team FreeK's Vitamin v%d.%d", VITAMIN_VERSION_MAJOR, VITAMIN_VERSION_MINOR);
+	printf("Vitamin v%d.%d by TheFloW, Major Tom, mr. gas", VITAMIN_VERSION_MAJOR, VITAMIN_VERSION_MINOR);
 
 	// Battery
 	char percent[8];
@@ -98,7 +98,12 @@ void initPowerTickThread() {
 int launchAppByUriExit(char *titleid) {
 	char uri[32];
 	sprintf(uri, "psgm:play?titleid=%s", titleid);
-
+/*
+	sceKernelDelayThread(5000);
+	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
+	sceKernelDelayThread(5000);
+	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
+*/
 	do {
 		sceKernelDelayThread(5000);
 		sceAppMgrLaunchAppByUri(0xFFFFF, uri);
