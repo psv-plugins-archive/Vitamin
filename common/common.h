@@ -22,7 +22,7 @@
 #include <psp2/power.h>
 
 #define VITAMIN_VERSION_MAJOR 1
-#define VITAMIN_VERSION_MINOR 0
+#define VITAMIN_VERSION_MINOR 1
 
 #define printf psvDebugScreenPrintf
 
@@ -35,6 +35,7 @@ typedef struct {
 	uint64_t size;
 	uint64_t ignored_size;
 	int is_cartridge;
+	int has_grw0;
 } GameInfo;
 
 enum Modes {

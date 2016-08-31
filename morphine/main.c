@@ -259,7 +259,6 @@ int main(int argc, char *argv[]) {
 
 	// Dump process
 	sprintf(app_path, "%s:app/%s", game_info.is_cartridge ? "gro0" : "ux0", titleid);
-	// ux0:app/ABCD12345
 
 	if (mode == MODE_UPDATE) {
 		// Dump decrypted files
@@ -292,7 +291,7 @@ int main(int argc, char *argv[]) {
 		sceIoRemove(dst_path);
 
 		// Backup patch in app folder
-		sprintf(tmp_path, "ux0:app/%s_patch", titleid);
+		sprintf(tmp_path, "ux0:patch/%s_org", titleid);
 		sceIoRename(app_path, tmp_path);
 
 		// Restore original app folder
@@ -323,7 +322,7 @@ int main(int argc, char *argv[]) {
 		sceKernelDelayThread(1 * 1000 * 1000);
 
 		// Delete *this* eboot.bin
-		sprintf(path, "ux0:patch/%s/eboot.bin", titleid);
+		sprintf(path, "%s:patch/%s/eboot.bin", game_info.has_grw0 ? "grw0" : "ux0", titleid);
 		sceIoRemove(path);
 	}
 
@@ -331,7 +330,7 @@ int main(int argc, char *argv[]) {
 	restoreSavedata();
 
 	// Write lsd module
-	sprintf(path, "ux0:patch/%s/sce_module/libc.suprx", titleid);
+	sprintf(path, "%s:patch/%s/sce_module/libc.suprx", game_info.has_grw0 ? "grw0" : "ux0", titleid);
 	WriteFile(path, lsd, size_lsd);
 
 	// Relaunch game

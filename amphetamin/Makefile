@@ -1,11 +1,11 @@
 TARGET  = amphetamin
 OBJS    = main.o blit.o font.o
 
-LIBS    = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceFios2_stub -lSceKernel_stub -lScePower_stub
+LIBS    = -lSceAppMgr_stub -lSceCtrl_stub -lSceDisplay_stub -lSceLibc_stub -lSceFios2_stub -lSceKernel_stub -lScePower_stub
 
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
-CFLAGS  = -Wl,-q -Wall -O3 -nostartfiles
+CFLAGS  = -Wl,-q -Wall -O3 -nostartfiles -nostdlib
 ASFLAGS = $(CFLAGS)
 
 all: $(TARGET).suprx

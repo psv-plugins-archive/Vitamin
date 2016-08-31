@@ -94,7 +94,8 @@ int injectMorphine(GameInfo *game_info, int mode) {
 		return res;
 
 	// Make patch dir
-	res = sceIoMkdir("ux0:patch", 0777);
+	sprintf(path, "%s:patch", game_info->has_grw0 ? "grw0" : "ux0");
+	res = sceIoMkdir(path, 0777);
 	if (res < 0 && res != SCE_ERROR_ERRNO_EEXIST)
 		return res;
 
@@ -114,43 +115,43 @@ int injectMorphine(GameInfo *game_info, int mode) {
 		return res;
 
 	// Make patch dir
-	sprintf(path, "ux0:patch/%s", game_info->titleid);
+	sprintf(path, "%s:patch/%s", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 	res = sceIoMkdir(path, 0777);
 	if (res < 0)
 		return res;
 
 	// Make sce_sys dir
-	sprintf(path, "ux0:patch/%s/sce_sys", game_info->titleid);
+	sprintf(path, "%s:patch/%s/sce_sys", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 	res = sceIoMkdir(path, 0777);
 	if (res < 0)
 		return res;
 
 	// Make sce_module dir
-	sprintf(path, "ux0:patch/%s/sce_module", game_info->titleid);
+	sprintf(path, "%s:patch/%s/sce_module", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 	res = sceIoMkdir(path, 0777);
 	if (res < 0)
 		return res;
 
 	// Write eboot.bin
-	sprintf(path, "ux0:patch/%s/eboot.bin", game_info->titleid);
+	sprintf(path, "%s:patch/%s/eboot.bin", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 	res = WriteFile(path, eboot_bin, size_eboot_bin);
 	if (res < 0)
 		return res;
 
 	// Write param.sfo
-	sprintf(path, "ux0:patch/%s/sce_sys/param.sfo", game_info->titleid);
+	sprintf(path, "%s:patch/%s/sce_sys/param.sfo", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 	res = WriteFile(path, param_sfo, size_param_sfo);
 	if (res < 0)
 		return res;
 
 	// Write dump mode
-	sprintf(path, "ux0:patch/%s/mode.bin", game_info->titleid);
+	sprintf(path, "%s:patch/%s/mode.bin", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 	res = WriteFile(path, &mode, sizeof(int));
 	if (res < 0)
 		return res;
 
 	// Write game info
-	sprintf(path, "ux0:patch/%s/info.bin", game_info->titleid);
+	sprintf(path, "%s:patch/%s/info.bin", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 	res = WriteFile(path, game_info, sizeof(GameInfo));
 	if (res < 0)
 		return res;
@@ -367,14 +368,10 @@ int finishDump(GameInfo *game_info, int mode) {
 	sceKernelDelayThread(1 * 1000 * 1000);
 
 	// Patch path
-	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
+	sprintf(patch_path, "%s:patch/%s", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 
 	// Temp path
-	if (mode == MODE_UPDATE) {
-		sprintf(tmp_path, "ux0:app/%s_patch", game_info->titleid);
-	} else {
-		sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
-	}
+	sprintf(tmp_path, "%s:patch/%s_org", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 
 	// Eject morphine
 	removePath(patch_path);
@@ -432,8 +429,8 @@ int dumpFullGame(GameInfo *game_info) {
 
 	// App path, patch path and temp path
 	sprintf(app_path, "%s:app/%s", game_info->is_cartridge ? "gro0" : "ux0", game_info->titleid);
-	sprintf(patch_path, "ux0:patch/%s", game_info->titleid);
-	sprintf(tmp_path, "ux0:patch/%s_org", game_info->titleid);
+	sprintf(patch_path, "%s:patch/%s", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
+	sprintf(tmp_path, "%s:patch/%s_org", game_info->has_grw0 ? "grw0" : "ux0", game_info->titleid);
 
 	// Destory all other apps
 	sceAppMgrDestroyOtherApp();
@@ -604,6 +601,97 @@ ERROR:
 	return res;
 }
 
+void restoreAppsPatches() {
+	char app_path[128], patch_path[128], tmp_path[128], path[128];
+
+	SceUID dfd = -1;
+
+	// Restore update dumping method
+	dfd = sceIoDopen("ux0:app");
+	if (dfd >= 0) {
+		int res = 0;
+
+		do {
+			SceIoDirent dir;
+			memset(&dir, 0, sizeof(SceIoDirent));
+
+			res = sceIoDread(dfd, &dir);
+			if (res > 0) {
+				sprintf(app_path, "ux0:app/%s", dir.d_name);
+				sprintf(patch_path, "ux0:patch/%s", dir.d_name);
+				sprintf(tmp_path, "ux0:app/%s_org", dir.d_name);
+				sprintf(path, "ux0:patch/%s/mode.bin", dir.d_name);
+
+				SceIoStat stat;
+				memset(&stat, 0, sizeof(SceIoStat));
+				if (sceIoGetstat(path, &stat) >= 0 && sceIoGetstat(tmp_path, &stat) >= 0) {
+					removePath(patch_path);
+
+					if (sceIoRename(app_path, patch_path) >= 0) {
+						sceIoRename(tmp_path, app_path);
+					}
+				}
+			}
+		} while (res > 0);
+
+		sceIoDclose(dfd);
+	}
+
+	// Restore digital full game dumping method
+	dfd = sceIoDopen("ux0:patch");
+	if (dfd >= 0) {
+		int res = 0;
+
+		do {
+			SceIoDirent dir;
+			memset(&dir, 0, sizeof(SceIoDirent));
+
+			res = sceIoDread(dfd, &dir);
+			if (res > 0) {
+				sprintf(patch_path, "ux0:patch/%s", dir.d_name);
+				sprintf(tmp_path, "ux0:patch/%s_org", dir.d_name);
+				sprintf(path, "ux0:patch/%s/mode.bin", dir.d_name);
+
+				SceIoStat stat;
+				memset(&stat, 0, sizeof(SceIoStat));
+				if (sceIoGetstat(path, &stat) >= 0) {
+					removePath(patch_path);
+					sceIoRename(tmp_path, patch_path);
+				}
+			}
+		} while (res > 0);
+
+		sceIoDclose(dfd);
+	}
+
+	// Restore cartridge full game dumping method
+	dfd = sceIoDopen("grw0:patch");
+	if (dfd >= 0) {
+		int res = 0;
+
+		do {
+			SceIoDirent dir;
+			memset(&dir, 0, sizeof(SceIoDirent));
+
+			res = sceIoDread(dfd, &dir);
+			if (res > 0) {
+				sprintf(patch_path, "grw0:patch/%s", dir.d_name);
+				sprintf(tmp_path, "grw0:patch/%s_org", dir.d_name);
+				sprintf(path, "grw0:patch/%s/mode.bin", dir.d_name);
+
+				SceIoStat stat;
+				memset(&stat, 0, sizeof(SceIoStat));
+				if (sceIoGetstat(path, &stat) >= 0) {
+					removePath(patch_path);
+					sceIoRename(tmp_path, patch_path);
+				}
+			}
+		} while (res > 0);
+
+		sceIoDclose(dfd);
+	}
+}
+
 int main(int argc, char *argv[]) {
 	char n_games_string[32];
 	char game_info_string[512];
@@ -616,23 +704,29 @@ int main(int argc, char *argv[]) {
 	// Init screen
 	psvDebugScreenInit();
 
-	// Restore original savedata in case it crashed before savedata could be restored
-	restoreSavedata();
-
 	// Relaunch game
 	char titleid[12];
 	memset(titleid, 0, sizeof(titleid));
 	if (ReadFile("ux0:pspemu/Vitamin/relaunch.bin", titleid, sizeof(titleid)) >= 0) {
 		sceIoRemove("ux0:pspemu/Vitamin/relaunch.bin");
 
+		// Has grw0?
+		int has_grw0 = 0;
+
+		SceIoStat stat;
+		memset(&stat, 0, sizeof(SceIoStat));
+		sprintf(path, "grw0:patch/%s/mode.bin", titleid);
+		if (sceIoGetstat(path, &stat) >= 0)
+			has_grw0 = 1;
+
 		// Read mode
-		sprintf(path, "ux0:patch/%s/mode.bin", titleid);
+		sprintf(path, "%s:patch/%s/mode.bin", has_grw0 ? "grw0" : "ux0", titleid);
 
 		int mode = 0;
 		ReadFile(path, &mode, sizeof(int));
 
 		// Read game info
-		sprintf(path, "ux0:patch/%s/info.bin", titleid);
+		sprintf(path, "%s:patch/%s/info.bin", has_grw0 ? "grw0" : "ux0", titleid);
 
 		GameInfo game_info;
 		ReadFile(path, &game_info, sizeof(GameInfo));
@@ -654,14 +748,23 @@ int main(int argc, char *argv[]) {
 		psvDebugScreenClear(DARKBLUE);
 		psvDebugScreenSetBgColor(DARKBLUE);
 
+		// Has grw0?
+		int has_grw0 = 0;
+
+		SceIoStat stat;
+		memset(&stat, 0, sizeof(SceIoStat));
+		sprintf(path, "grw0:patch/%s/mode.bin", titleid);
+		if (sceIoGetstat(path, &stat) >= 0)
+			has_grw0 = 1;
+
 		// Read mode
-		sprintf(path, "ux0:patch/%s/mode.bin", titleid);
+		sprintf(path, "%s:patch/%s/mode.bin", has_grw0 ? "grw0" : "ux0", titleid);
 
 		int mode = 0;
 		ReadFile(path, &mode, sizeof(int));
 
 		// Read game info
-		sprintf(path, "ux0:patch/%s/info.bin", titleid);
+		sprintf(path, "%s:patch/%s/info.bin", has_grw0 ? "grw0" : "ux0", titleid);
 
 		GameInfo game_info;
 		ReadFile(path, &game_info, sizeof(GameInfo));
@@ -681,6 +784,16 @@ int main(int argc, char *argv[]) {
 
 		psvDebugScreenResetMargin();
 	}
+
+	// Destroy all apps first
+	sceAppMgrDestroyOtherApp();
+	sceKernelDelayThread(1 * 1000 * 1000);
+
+	// Restore original savedata in case it crashed before savedata could be restored
+	restoreSavedata();
+
+	// Restore apps and patches
+	restoreAppsPatches();
 
 	// Get games
 	GameInfo *game_infos = malloc(MAX_GAMES * sizeof(GameInfo));

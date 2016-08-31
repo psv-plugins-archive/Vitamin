@@ -96,23 +96,15 @@ void initPowerTickThread() {
 }
 
 int launchAppByUriExit(char *titleid) {
-/*
 	char uri[32];
 	sprintf(uri, "psgm:play?titleid=%s", titleid);
 
-	sceKernelDelayThread(5000);
+	sceKernelDelayThread(10000);
 	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
-	sceKernelDelayThread(5000);
+	sceKernelDelayThread(10000);
 	sceAppMgrLaunchAppByUri(0xFFFFF, uri);
-
-	do {
-		sceKernelDelayThread(5000);
-		sceAppMgrLaunchAppByUri(0xFFFFF, uri);
-	} while (!sceAppMgrIsOtherAppPresent());
 
 	sceKernelExitProcess(0);
-*/
-	sceAppMgrLaunchAppByName(0xFFFFF, titleid, NULL);
 
 	return 0;
 }

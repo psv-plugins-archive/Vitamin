@@ -62,6 +62,14 @@ int addGames(char *app_path, int is_cartridge, int count, GameInfo *game_infos, 
 					// Is cartridge
 					game_infos[count].is_cartridge = is_cartridge;
 
+					// Has grw0?
+					if (is_cartridge) {
+						SceIoStat stat;
+						memset(&stat, 0, sizeof(SceIoStat));
+						if (sceIoGetstat("grw0:", &stat) >= 0)
+							game_infos[count].has_grw0 = 1;
+					}
+
 					// Get title
 					getSfoString(buffer, "TITLE", game_infos[count].name, 40 - 1);
 
@@ -121,7 +129,7 @@ int getGames(GameInfo *game_infos, char **game_entries) {
 	count = addGames("ux0:app", 0, count, game_infos, game_entries);
 /*
 	int i;
-	for (i = 0; i < 12; i++) {
+	for (i = 0; i < 20; i++) {
 		char *name = malloc(256);
 		sprintf(name, "Test %d", i);
 		game_entries[count] = name;
